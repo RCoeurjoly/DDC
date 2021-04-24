@@ -11,7 +11,7 @@
       stdenv.mkDerivation {
         name = "quicksort";
         src = self;
-        buildPhase = "gcc -o quicksort ./quicksort.cpp";
+        buildPhase = "gcc -g -o quicksort ./quicksort.cpp";
         installPhase = "mkdir -p $out/bin; install -t $out/bin quicksort";
       };
 
