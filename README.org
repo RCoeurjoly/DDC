@@ -1,0 +1,6 @@
+* Usage
+** Install nix
+** Enable flakes
+   #+begin_src shell :shebang #!/bin/bash -i :results output
+nix-shell -I nixpkgs=channel:nixos-20.03 --packages nixFlakes
+   #+end_src
