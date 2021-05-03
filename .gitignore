@@ -1,1 +1,5 @@
 result
+gdb_record*
+*out*
+*.log
+core*
