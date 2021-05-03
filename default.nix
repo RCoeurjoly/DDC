@@ -5,9 +5,9 @@ stdenv.mkDerivation {
   src = ./.;
   dontStrip = true;
 
-  buildInputs = [ gdb ];
+  buildInputs = [ gdb python3 rr];
 
-  buildPhase = "gcc -g -o quicksort quicksort.cpp";
+  buildPhase = "gcc -g -o quicksort quicksort.cpp -lstdc++";
 
   installPhase = ''
     mkdir -p $out/bin
