@@ -60,15 +60,13 @@ void print_array(T const(& arr)[n])
     std::cout << arr[i] << ' ';
   }
 }
-void foo()
+
+void foo(int limit)
 {
-
-}
-
-
-void bar()
-{
-  foo();
+  if (limit >= 0) {
+    printf("%d\n", limit);
+    foo(limit - 1);
+  }
 }
 
 // Driver program to test above functions
@@ -79,7 +77,7 @@ int main()
   printf("%d\n", n);
   quickSort(arr, 0, n-1);
   printf("Sorted array: \n");
+  foo(10);
   print_array(arr);
-  bar();
   return 0;
 }
