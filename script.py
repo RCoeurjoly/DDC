@@ -8,6 +8,7 @@ def main():
     gdb.execute("c")
     gdb.execute("c")
     frame = gdb.selected_frame() # Use the current frame
+    print(id(frame))
     print(frame.address())
     print(frame.older().pc())
     print(frame.older().older().pc())

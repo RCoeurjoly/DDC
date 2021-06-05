@@ -77,7 +77,7 @@ int main()
   printf("%d\n", n);
   quickSort(arr, 0, n-1);
   printf("Sorted array: \n");
-  foo(10);
+  //foo(10);
   print_array(arr);
   return 0;
 }
