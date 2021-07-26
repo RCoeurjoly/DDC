@@ -4,7 +4,6 @@
     inputs = {
         nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
     };
-
     outputs = { self, nixpkgs }: {
 
         defaultPackage.x86_64-linux =
@@ -16,8 +15,11 @@
             buildPhase = "gcc -g -o quicksort ./quicksort.cpp -lstdc++";
             installPhase = "mkdir -p $out/bin; install -t $out/bin quicksort";
         };
+
         devShell.x86_64-linux =
-            nixpkgs.mkShell { buildInputs = [ nixpkgs.gdb nixpkgs.python3 nixpkgs.rr ]; };
+          nixpkgs.legacyPackages.x86_64-linux.mkShell { buildInputs = [ nixpkgs.legacyPackages.x86_64-linux.gdb
+                                                                        nixpkgs.legacyPackages.x86_64-linux.python3
+                                                                        nixpkgs.legacyPackages.x86_64-linux.rr ]; };
 
     };
 }
