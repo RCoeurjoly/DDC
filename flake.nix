@@ -17,7 +17,7 @@
             installPhase = "mkdir -p $out/bin; install -t $out/bin quicksort";
         };
         devShell.x86_64-linux =
-            pkgs.mkShell { buildInputs = [ gdb python3 rr ]; };
+            nixpkgs.mkShell { buildInputs = [ nixpkgs.gdb nixpkgs.python3 nixpkgs.rr ]; };
 
     };
 }
