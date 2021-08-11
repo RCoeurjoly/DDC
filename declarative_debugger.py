@@ -1,6 +1,131 @@
 import os
 import sys
 
+class DebuggingSession:
+    def __init__(self):
+        self.nodes = []
+        self.started = False
+        self.finished = False
+    def __repr__(self):
+        nodes = ""
+        for node in self.nodes:
+            nodes += repr(node) + "\n"
+        return nodes + "Started: " + str(self.started) + "\nFinished: " + str(self.finished)
+    def start(self):
+        self.started = True
+    def finish(self):
+        self.finished = True
+
+class CommandFinishSession(gdb.Command):
+  """Set breakpoint for ending debugging session"""
+  def __init__ (self):
+      super (CommandFinishSession, self).__init__ ("finish-debugging-session", gdb.COMMAND_USER)
+
+  def invoke (self, arg, from_tty):
+      global my_debugging_session
+      my_debugging_session.finished = True
+
+CommandFinishSession()
+
+class Node:
+    def __init__(self, frame, arguments=[], global_variables=[], object_state=None):
+        self.frame = frame
+        self.name = frame.name()
+        self.arguments_when_called = arguments
+        self.arguments_when_returning = []
+        self.global_variables_when_called = global_variables
+        self.global_variables_when_returning = []
+        self.object_state_when_called = object_state
+        self.object_state_when_returning = None
+        self.return_value = None
+        self.children = []
+
+    def __repr__(self):
+        str_children = ""
+        for node in self.children:
+            str_children += "\n\t" + repr(node)
+        return self.name + str_children
+
+    def finish(self, arguments=None, global_variables=None, object_state=None, return_value=None):
+        self.arguments_when_returning = arguments
+        self.global_variables_when_returning = global_variables
+        self.object_state_when_returning = object_state
+        self.return_value = return_value
+
+    def adopt(self, children_node):
+        self.children.append(children_node)
+
+class SetBreak(gdb.Breakpoint):
+    def __init__(self, function, final=False):
+        gdb.Breakpoint.__init__(self, function)
+        self.final = final
+        if (final):
+            self.commands = "finish-debugging-session"
+        else:
+            self.commands = "add-node-to-session"
+        self.silent = False
+
+    def stop(self):
+        return True # stop the execution at this point
+
+class CommandAddNodeToSession(gdb.Command):
+    """Set breakpoint for ending debugging session"""
+
+    def __init__ (self):
+        super (CommandAddNodeToSession, self).__init__ ("add-node-to-session", gdb.COMMAND_USER)
+
+    def invoke (self, arg, from_tty):
+        global my_debugging_session
+        # Variable: Symbol.is_argument
+        arguments = [symbol for symbol in gdb.selected_frame().block() if symbol.is_argument]
+        my_node = Node(gdb.selected_frame(), arguments)
+        add_node_to_list(my_debugging_session.nodes, my_node)
+
+CommandAddNodeToSession()
+
+def add_node_to_list(nodes, node):
+    if nodes == [] or not nodes[-1].frame.is_valid():
+        nodes.append(node)
+    else:
+        add_node_to_list(nodes[-1].children, node)
+
+def get_parent_frames(node):
+    parents = []
+    aux_node = node.frame.older()
+    while aux_node is not None:
+        parents.append(aux_node)
+    return parents
+
+class CommandSuspectFunction(gdb.Command):
+  """Set breakpoint for ending debugging session"""
+
+  def __init__ (self):
+    super (CommandSuspectFunction, self).__init__ ("suspect-function", gdb.COMMAND_USER)
+
+  def invoke (self, arg, from_tty):
+    SetBreak(arg, False)
+
+CommandSuspectFunction()
+
+class CommandFinalBreakpoint(gdb.Command):
+  """Set breakpoint for ending debugging session"""
+
+  def __init__ (self):
+    super (CommandFinalBreakpoint, self).__init__ ("final-point", gdb.COMMAND_USER)
+
+  def invoke (self, arg, from_tty):
+    SetBreak(arg, True)
+
+CommandFinalBreakpoint()
+
+class SetBreakpoint(gdb.Command):
+    """Set breakpoint on function or method"""
+    def __init__ (self):
+        super (SetBreakpoint, self).__init__ ("set-breakpoint", gdb.COMMAND_USER)
+
+    def invoke (self, arg, from_tty):
+        return
+
 class StartDeclarativeDebuggingSession(gdb.Command):
   """Set breakpoint on setField from Quickfix. It takes the tag number as argument"""
 
@@ -17,7 +142,9 @@ class PrintNodes(gdb.Command):
     super (PrintNodes, self).__init__ ("print-nodes", gdb.COMMAND_USER)
 
   def invoke (self, arg, from_tty):
-    return
+    print(my_debugging_session)
+
+PrintNodes()
 
 class PrintNode(gdb.Command):
   """Print node of declarative debugging session"""
@@ -57,16 +184,16 @@ class MyFinishBreakpoint (gdb.FinishBreakpoint):
 
 def main():
     gdb.execute("del")
-    gdb.execute("break quickSort")
+    gdb.execute("set pagination off")
+    gdb.execute("suspect-function quickSort")
+    gdb.execute("suspect-function swap(int*, int*)")
+    gdb.execute("suspect-function partition(int*, int, int)")
+    gdb.execute("final-point quicksort.cpp:81")
     gdb.execute("start")
     gdb.execute("c")
     gdb.execute("c")
-    frame_first_quicksort = gdb.selected_frame() # Use the current frame
-    #gdb.execute("dis")
-    MyFinishBreakpoint()
-    #gdb.execute("c")
-    #frame_second_quicksort = gdb.selected_frame()
-    #print(frame_second_quicksort.older() == frame_first_quicksort)
-    #print(frame_second_quicksort == frame_first_quicksort)
+    gdb.execute("print-nodes")
 
-#main()
+my_debugging_session = DebuggingSession()
+
+main()
