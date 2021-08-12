@@ -1,27 +1,45 @@
 {
-  description = "A flake for building quicksort";
+  description = "My Python application";
 
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:NixOS/nixpkgs";
+    flake-utils.url = "github:numtide/flake-utils";
   };
 
-  outputs = { self, nixpkgs }: {
+  outputs = { self, nixpkgs, flake-utils }:
+    flake-utils.lib.eachDefaultSystem (system:
+      let
+        pkgs = nixpkgs.legacyPackages.${system};
 
-    defaultPackage.x86_64-linux =
-      # Notice the reference to nixpkgs here.
-      with import nixpkgs { system = "x86_64-linux"; };
-      stdenv.mkDerivation {
-        name = "quicksort";
-        src = self;
-        dontStrip = true;
-        buildPhase = "gcc -g -o quicksort ./quicksort.cpp -lstdc++";
-        installPhase = "mkdir -p $out/bin; install -t $out/bin quicksort";
-      };
+        customOverrides = self: super: {
+          # Overrides go here
+        };
 
-    devShell.x86_64-linux =
-      nixpkgs.legacyPackages.x86_64-linux.mkShell { buildInputs = [ nixpkgs.legacyPackages.x86_64-linux.gdb
-                                                                    nixpkgs.legacyPackages.x86_64-linux.python3
-                                                                    nixpkgs.legacyPackages.x86_64-linux.rr ]; };
+        app = pkgs.poetry2nix.mkPoetryApplication {
+          projectDir = ./.;
+          overrides =
+            [ pkgs.poetry2nix.defaultPoetryOverrides customOverrides ];
+        };
 
-  };
+        # DON'T FORGET TO PUT YOUR PACKAGE NAME HERE, REMOVING `throw`
+        packageName = "poetry test";
+      in {
+        packages.${packageName} = app;
+
+        defaultPackage =
+          # Notice the reference to nixpkgs here.
+          with import nixpkgs { system = "x86_64-linux"; };
+          stdenv.mkDerivation {
+            name = "quicksort";
+            src = self;
+            dontStrip = true;
+            buildPhase = "gcc -g -o quicksort ./quicksort.cpp -lstdc++";
+            installPhase = "mkdir -p $out/bin; install -t $out/bin quicksort";
+          };
+
+        devShell = pkgs.mkShell {
+          buildInputs = with pkgs; [ gdb rr poetry ];
+          inputsFrom = builtins.attrValues self.packages.${system};
+        };
+      });
 }

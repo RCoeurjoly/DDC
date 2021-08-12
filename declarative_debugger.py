@@ -30,6 +30,7 @@ CommandFinishSession()
 class Node:
     def __init__(self, frame, arguments=[], global_variables=[], object_state=None):
         self.frame = frame
+        # self.frame_hash = hash(frame)
         self.name = frame.name()
         self.arguments_when_called = arguments
         self.arguments_when_returning = []
@@ -62,7 +63,7 @@ class SetBreak(gdb.Breakpoint):
         if (final):
             self.commands = "finish-debugging-session"
         else:
-            self.commands = "add-node-to-session"
+            self.commands = "add-node-to-session\nc"
         self.silent = False
 
     def stop(self):
@@ -79,15 +80,19 @@ class CommandAddNodeToSession(gdb.Command):
         # Variable: Symbol.is_argument
         arguments = [symbol for symbol in gdb.selected_frame().block() if symbol.is_argument]
         my_node = Node(gdb.selected_frame(), arguments)
-        add_node_to_list(my_debugging_session.nodes, my_node)
+        print("Position is: " + str(add_node_to_list(my_debugging_session.nodes, my_node, [])))
+        MyFinishBreakpoint()
 
 CommandAddNodeToSession()
 
-def add_node_to_list(nodes, node):
+def add_node_to_list(nodes, node, position):
     if nodes == [] or not nodes[-1].frame.is_valid():
+        position.append(len(nodes))
         nodes.append(node)
+        return position
     else:
-        add_node_to_list(nodes[-1].children, node)
+        position.append(len(nodes)-1)
+        return add_node_to_list(nodes[-1].children, node, position)
 
 def get_parent_frames(node):
     parents = []
@@ -174,13 +179,38 @@ class SaveReturningNode(gdb.Command):
   def invoke (self, frame_id, from_tty):
     return
 
-
 class MyFinishBreakpoint (gdb.FinishBreakpoint):
+    # def __init__(self, frame=gdb.newest_frame(), internal=True):
+    #     super(MyFinishBreakpoint, self).__init__(frame, internal)
+    #     self.associated_frame = frame
     def stop (self):
-        print ("normal finish")
+        global my_debugging_session
+        last_node = get_last_node(my_debugging_session.nodes)
+        #print("Nodo que hemos finalizado: " + last_node.name)
+        print("Codigo de retorno: " + str(self.return_value))
+        # print("normal finish")
+        self.commands = "c"
         return True
-    def out_of_scope ():
-        print ("abnormal finish")
+    def out_of_scope(self):
+        print("abnormal finish")
+
+def get_node_with_frame(nodes, frame):
+    if not nodes:
+        return None
+    else:
+        return None
+
+
+def get_last_node(nodes):
+    if nodes == []:
+        print("This should never happen")
+        return None
+    else:
+        if nodes[-1].children == []:
+            print("yohooo")
+            return nodes[-1]
+        else:
+            return get_last_node(nodes[-1].children)
 
 def main():
     gdb.execute("del")
@@ -192,7 +222,6 @@ def main():
     gdb.execute("start")
     gdb.execute("c")
     gdb.execute("c")
-    gdb.execute("print-nodes")
 
 my_debugging_session = DebuggingSession()
 
