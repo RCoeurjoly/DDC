@@ -38,7 +38,7 @@ int partition (int arr[], int low, int high)
    arr[] --> Array to be sorted,
    low  --> Starting index,
    high  --> Ending index */
-void quickSort(int arr[], int low, int high)
+void quickSort(int arr[], int low, int high, std::string gdb_bug="")
 {
   if (low < high)
     {
@@ -61,21 +61,18 @@ void print_array(T const(& arr)[n])
   }
 }
 
-void foo(int limit)
-{
-  if (limit >= 0) {
-    printf("%d\n", limit);
-    foo(limit - 1);
-  }
-}
-
 // Driver program to test above functions
 int main()
 {
   int arr[] = {10, 7, 8, 9, 1, 5};
+  //          {1, 7, 8, 9, 10, 5};
+  //          {1, 5, 8, 9, 10, 7};
+  //          {1, 5, 8, 9, 10, 7};
+  //          {1, 5, 7, 9, 10, 8};
+  //          {1, 5, 7, 8, 10, 9};
+  //          {1, 5, 7, 8, 9, 10};
   int n = sizeof(arr)/sizeof(arr[0]);
-  printf("%d\n", n);
-  quickSort(arr, 0, n-1);
+  quickSort(arr, 0, n-1, "bug");
   printf("Sorted array: \n");
   //foo(10);
   print_array(arr);
