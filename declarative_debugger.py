@@ -1,16 +1,13 @@
 import os
 import sys
+from rich.tree import Tree
+from rich import print
 
 class DebuggingSession:
     def __init__(self):
-        self.nodes = []
+        self.children = []
         self.started = False
         self.finished = False
-    def __repr__(self):
-        nodes = ""
-        for node in self.nodes:
-            nodes += repr(node) + "\n"
-        return nodes + "Started: " + str(self.started) + "\nFinished: " + str(self.finished)
     def start(self):
         self.started = True
     def finish(self):
@@ -32,23 +29,32 @@ class Node:
         self.frame = frame
         # self.frame_hash = hash(frame)
         self.name = frame.name()
-        self.arguments_when_called = arguments
+        self.arguments_on_entry = arguments
+        args = ""
+        for argument in self.arguments_on_entry:
+            args += argument.print_name + " = " + str(argument.value(self.frame)) + ", "
+        self.arguments_on_entry_str = args
         self.arguments_when_returning = []
-        self.global_variables_when_called = global_variables
+        self.arguments_when_returning_str = ""
+        self.global_variables_on_entry = global_variables
         self.global_variables_when_returning = []
-        self.object_state_when_called = object_state
+        self.object_state_on_entry = object_state
         self.object_state_when_returning = None
         self.return_value = None
         self.children = []
 
-    def __repr__(self):
-        str_children = ""
-        for node in self.children:
-            str_children += "\n\t" + repr(node)
-        return self.name + str_children
+    def get_tree(self):
+        tree = Tree(self.name + ": args: " + self.arguments_on_entry_str)
+        for child in self.children:
+            tree.add(child.get_tree())
+        return tree
 
     def finish(self, arguments=None, global_variables=None, object_state=None, return_value=None):
         self.arguments_when_returning = arguments
+        args = ""
+        for argument in self.arguments_when_returning:
+            args += argument.print_name + " = " + str(argument.value(self.frame)) + ", "
+        self.arguments_when_returning_str = args
         self.global_variables_when_returning = global_variables
         self.object_state_when_returning = object_state
         self.return_value = return_value
@@ -63,11 +69,32 @@ class SetBreak(gdb.Breakpoint):
         if (final):
             self.commands = "finish-debugging-session"
         else:
-            self.commands = "add-node-to-session\nc"
+            self.commands = ("add-node-to-session\n"
+                             "c")
         self.silent = False
 
     def stop(self):
         return True # stop the execution at this point
+
+
+class SaveReturningNode(gdb.Command):
+  """Save the info at the moment a node is returning in declarative debugging session"""
+
+  def __init__ (self):
+    super(SaveReturningNode, self).__init__ ("save-returning-node", gdb.COMMAND_USER)
+
+  def invoke (self, arg, from_tty):
+      gdb.execute("reverse-step")
+      global my_debugging_session
+      arguments = [symbol for symbol in gdb.newest_frame().block() if symbol.is_argument]
+      my_node = get_node_from_frame(my_debugging_session.children, gdb.newest_frame())
+      my_node.finish(arguments=arguments)
+      #my_node.arguments_when_returning = [1, 2]
+      gdb.execute("n")
+      #gdb.execute("c")
+      return
+
+SaveReturningNode ()
 
 class CommandAddNodeToSession(gdb.Command):
     """Set breakpoint for ending debugging session"""
@@ -80,13 +107,18 @@ class CommandAddNodeToSession(gdb.Command):
         # Variable: Symbol.is_argument
         arguments = [symbol for symbol in gdb.selected_frame().block() if symbol.is_argument]
         my_node = Node(gdb.selected_frame(), arguments)
-        print("Position is: " + str(add_node_to_list(my_debugging_session.nodes, my_node, [])))
-        MyFinishBreakpoint()
+        position = add_node_to_list(my_debugging_session.children, my_node, [])
+        my_finish_br = MyFinishBreakpoint(position)
+        my_finish_breakpoint = [breakpoint for breakpoint in gdb.breakpoints () if breakpoint.number == my_finish_br.number][0]
+        my_br = gdb.Breakpoint(my_finish_breakpoint.location, temporary=False)
+        my_br.commands = ("save-returning-node\n"
+                          "c\n")
+        my_finish_breakpoint.delete()
 
 CommandAddNodeToSession()
 
 def add_node_to_list(nodes, node, position):
-    if nodes == [] or not nodes[-1].frame.is_valid():
+    if nodes == [] or not nodes[-1].frame.is_valid() or nodes[-1].frame not in get_parent_frames(node):
         position.append(len(nodes))
         nodes.append(node)
         return position
@@ -96,9 +128,10 @@ def add_node_to_list(nodes, node, position):
 
 def get_parent_frames(node):
     parents = []
-    aux_node = node.frame.older()
-    while aux_node is not None:
-        parents.append(aux_node)
+    aux_frame = node.frame.older()
+    while aux_frame is not None:
+        parents.append(aux_frame)
+        aux_frame = aux_frame.older()
     return parents
 
 class CommandSuspectFunction(gdb.Command):
@@ -147,7 +180,8 @@ class PrintNodes(gdb.Command):
     super (PrintNodes, self).__init__ ("print-nodes", gdb.COMMAND_USER)
 
   def invoke (self, arg, from_tty):
-    print(my_debugging_session)
+    for node in my_debugging_session.children:
+        print(node.get_tree())
 
 PrintNodes()
 
@@ -170,44 +204,40 @@ class SaveStartNode(gdb.Command):
     frame = gdb.selected_frame() # Use the current frame
     return frame
 
-class SaveReturningNode(gdb.Command):
-  """Save the info at the moment a node is returning in declarative debugging session"""
-
-  def __init__ (self):
-    super(SaveReturningNode, self).__init__ ("save-returning-node", gdb.COMMAND_USER)
-
-  def invoke (self, frame_id, from_tty):
-    return
-
 class MyFinishBreakpoint (gdb.FinishBreakpoint):
-    # def __init__(self, frame=gdb.newest_frame(), internal=True):
-    #     super(MyFinishBreakpoint, self).__init__(frame, internal)
-    #     self.associated_frame = frame
+    def __init__(self, position):
+        super(MyFinishBreakpoint, self).__init__()
+        self.position = position
+        self.commands = ("p \"joooder\"\n"
+                         "reverse-step\n"
+                         "save-returning-node\n"
+                         "next"
+                         "c")
+        #self.associated_frame = frame
     def stop (self):
         global my_debugging_session
-        last_node = get_last_node(my_debugging_session.nodes)
-        #print("Nodo que hemos finalizado: " + last_node.name)
-        print("Codigo de retorno: " + str(self.return_value))
-        # print("normal finish")
-        self.commands = "c"
+        get_node_from_position(my_debugging_session.children, self.position).return_value = self.return_value
         return True
     def out_of_scope(self):
         print("abnormal finish")
 
-def get_node_with_frame(nodes, frame):
-    if not nodes:
-        return None
+def get_node_from_position(nodes, position):
+    if len(position) == 1:
+        return nodes[position[0]]
     else:
-        return None
+        return get_node_from_position(nodes[position[0]].children, position[1:])
 
+def get_node_from_frame(nodes, frame):
+    for node in nodes:
+        if node.frame == frame:
+            return node
+    return get_node_from_frame(nodes[-1].children, frame)
 
 def get_last_node(nodes):
     if nodes == []:
-        print("This should never happen")
         return None
     else:
         if nodes[-1].children == []:
-            print("yohooo")
             return nodes[-1]
         else:
             return get_last_node(nodes[-1].children)
@@ -215,10 +245,11 @@ def get_last_node(nodes):
 def main():
     gdb.execute("del")
     gdb.execute("set pagination off")
-    gdb.execute("suspect-function quickSort")
+    #gdb.execute("suspect-function quickSort(int*, int, int)")
+    gdb.execute("suspect-function quickSort(int*, int, int, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >)")
     gdb.execute("suspect-function swap(int*, int*)")
     gdb.execute("suspect-function partition(int*, int, int)")
-    gdb.execute("final-point quicksort.cpp:81")
+    gdb.execute("final-point print_array<int, 6ul>(int const (&) [6ul])")
     gdb.execute("start")
     gdb.execute("c")
     gdb.execute("c")
