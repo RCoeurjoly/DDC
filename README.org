@@ -1,6 +1,49 @@
-* Usage
-** Install nix
+* Requirements
+  Recent hardware, enough to [[https://github.com/rr-debugger/rr#system-requirements][run rr]].
+* Usage (Linux only)
+** [[https://nixos.org/download.html][Install nix]]
 ** Enable flakes
    #+begin_src shell :shebang #!/bin/bash -i :results output
 nix-shell -I nixpkgs=channel:nixos-20.03 --packages nixFlakes
+   #+end_src
+** Get into the development shell
+   #+begin_src shell :shebang #!/bin/bash -i :results output
+nix develop
+   #+end_src
+
+
+
+   After this command finish, you should be able to see several programs in your PATH:
+   #+begin_src shell :shebang #!/bin/bash -i :results output
+rr --version
+gdb --version
+poetry --version
+#+end_src
+
+#+RESULTS:
+rr version 5.4.0
+GNU gdb (GDB) 10.2
+Poetry version 1.1.5
+** Build the program
+   #+begin_src shell :shebang #!/bin/bash -i :results output
+nix build
+   #+end_src
+** Record the program
+   #+begin_src shell :shebang #!/bin/bash -i :results output
+rr record ./result/bin/quicksort
+   #+end_src
+
+   You may need to do the following to allow recording:
+   #+begin_src shell :shebang #!/bin/bash -i :results output
+sudo sysctl -w kernel.perf_event_paranoid=1
+   #+end_src
+** Replay the recording
+   #+begin_src shell :shebang #!/bin/bash -i :results output
+rr replay
+   #+end_src
+
+   Now you are in rr (which is an enhancement on gdb)
+** Source the python script
+   #+begin_src shell :shebang #!/bin/bash -i :results output
+source declarative_debugger.py
    #+end_src
