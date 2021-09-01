@@ -1,7 +1,9 @@
 import os
 import sys
+from enum import Enum
 from rich.tree import Tree
 from rich import print
+from simple_term_menu import TerminalMenu
 
 class DebuggingSession:
     def __init__(self):
@@ -30,38 +32,91 @@ class Node:
         # self.frame_hash = hash(frame)
         self.name = frame.name()
         self.arguments_on_entry = arguments
-        args = ""
-        for argument in self.arguments_on_entry:
-            args += argument.print_name + " = " + str(argument.value(self.frame)) + ", "
-        self.arguments_on_entry_str = args
+        args_tree = Tree("args on entry")
+        for arg in self.arguments_on_entry:
+            arg_tree_name = arg.print_name + " = "
+            if arg.print_name == "arr":
+                arg_tree_name += str(gdb.parse_and_eval("*arr@6"))
+            elif arg.value(self.frame).type.code == gdb.TYPE_CODE_PTR:
+                arg_tree_name += str(arg.value(self.frame).dereference())
+            else:
+                arg_tree_name += str(arg.value(self.frame).format_string(
+                    raw=False,
+                    pretty_arrays=True,
+                    pretty_structs=True,
+                    array_indexes = True,
+                    symbols=True,
+                    deref_refs=True))
+            args_tree.add(arg_tree_name)
+        self.arguments_on_entry_tree = args_tree
         self.arguments_when_returning = []
-        self.arguments_when_returning_str = ""
+        self.arguments_when_returning_tree = ""
         self.global_variables_on_entry = global_variables
         self.global_variables_when_returning = []
         self.object_state_on_entry = object_state
         self.object_state_when_returning = None
         self.return_value = None
         self.children = []
+        self.correct = Answer.IDK
 
-    def get_tree(self):
-        tree = Tree(self.name + ": args: " + self.arguments_on_entry_str)
-        for child in self.children:
-            tree.add(child.get_tree())
+    def get_tree(self, get_children=True):
+        tree = Tree(self.name)
+        correct_tree = Tree("correctness")
+        correct_tree.add(str(self.correct))
+        tree.add(correct_tree)
+        if self.arguments_on_entry_tree != self.arguments_when_returning_tree:
+            tree.add(self.arguments_on_entry_tree)
+            tree.add(self.arguments_when_returning_tree)
+        if get_children:
+            children_tree = Tree("children")
+            # tree.add("children")
+            for child in self.children:
+                children_tree.add(child.get_tree())
+            tree.add(children_tree)
         return tree
 
     def finish(self, arguments=None, global_variables=None, object_state=None, return_value=None):
         self.arguments_when_returning = arguments
         args = ""
-        for argument in self.arguments_when_returning:
-            args += argument.print_name + " = " + str(argument.value(self.frame)) + ", "
-        self.arguments_when_returning_str = args
+        args_tree = Tree("args when returning")
+        for arg in self.arguments_when_returning:
+            arg_tree_name = arg.print_name + " = "
+            if arg.print_name == "arr":
+                arg_tree_name += str(gdb.parse_and_eval("*arr@6"))
+            elif arg.value(self.frame).type.code == gdb.TYPE_CODE_PTR:
+                arg_tree_name += str(arg.value(self.frame).dereference())
+            else:
+                arg_tree_name += str(arg.value(self.frame).format_string(
+                    raw=False,
+                    pretty_arrays=True,
+                    pretty_structs=True,
+                    array_indexes = True,
+                    symbols=True,
+                    deref_refs=True))
+            args_tree.add(arg_tree_name)
+        self.arguments_when_returning_tree = args_tree
         self.global_variables_when_returning = global_variables
         self.object_state_when_returning = object_state
         self.return_value = return_value
 
     def adopt(self, children_node):
         self.children.append(children_node)
-
+    def evaluate(self, answer):
+        if type(answer) is str:
+            self.evaluate_str(answer)
+        if type(answer) is Answer:
+            self.evaluate_answer(answer)
+    def evaluate_str(self, answer):
+        if answer == "Yes":
+            self.correct = Answer.YES
+        if answer == "No":
+            self.correct = Answer.NO
+        if answer == "I don't know":
+            self.correct = Answer.IDK
+        if answer == "Trusted":
+            self.correct = Answer.TRUSTED
+    def evaluate_answer(self, answer):
+        self.correct = answer
 class SetBreak(gdb.Breakpoint):
     def __init__(self, function, final=False):
         gdb.Breakpoint.__init__(self, function)
@@ -69,13 +124,12 @@ class SetBreak(gdb.Breakpoint):
         if (final):
             self.commands = "finish-debugging-session"
         else:
-            self.commands = ("add-node-to-session\n"
-                             "c")
+            self.commands = ("add-node-to-session\n")
+                             # "c")
         self.silent = False
 
     def stop(self):
         return True # stop the execution at this point
-
 
 class SaveReturningNode(gdb.Command):
   """Save the info at the moment a node is returning in declarative debugging session"""
@@ -111,8 +165,8 @@ class CommandAddNodeToSession(gdb.Command):
         my_finish_br = MyFinishBreakpoint(position)
         my_finish_breakpoint = [breakpoint for breakpoint in gdb.breakpoints () if breakpoint.number == my_finish_br.number][0]
         my_br = gdb.Breakpoint(my_finish_breakpoint.location, temporary=False)
-        my_br.commands = ("save-returning-node\n"
-                          "c\n")
+        my_br.commands = ("save-returning-node\n")
+                      #    "c\n")
         my_finish_breakpoint.delete()
 
 CommandAddNodeToSession()
@@ -171,7 +225,22 @@ class StartDeclarativeDebuggingSession(gdb.Command):
     super (StartDeclarativeDebuggingSession, self).__init__ ("start-declarative-debugging-session", gdb.COMMAND_USER)
 
   def invoke (self, arg, from_tty):
-    return
+    my_finish_breakpoint = [breakpoint for breakpoint in gdb.breakpoints() if breakpoint.commands == "finish-debugging-session\n"]
+    hit_count = my_finish_breakpoint[0].hit_count
+    while (hit_count == 0):
+        gdb.execute("c")
+        hit_count = my_finish_breakpoint[0].hit_count
+    print("Finished building debugging tree. Please choose debugging strategy")
+    options = ["Top-down", "Divide and query"]
+    terminal_menu = TerminalMenu(options)
+    menu_entry_index = terminal_menu.show()
+    print(f"You have selected {options[menu_entry_index]}!")
+    for node in my_debugging_session.children:
+        buggy_node = top_down_strategy(node)
+        print("Buggy node found")
+        print(buggy_node.get_tree(False))
+
+StartDeclarativeDebuggingSession()
 
 class PrintNodes(gdb.Command):
   """Print nodes of declarative debugging session"""
@@ -184,6 +253,70 @@ class PrintNodes(gdb.Command):
         print(node.get_tree())
 
 PrintNodes()
+
+class Answer(Enum):
+    YES = 1
+    NO = 2
+    IDK = 3
+    TRUSTED = 4
+    def describe(self):
+        # self is the member here
+        return self.name, self.value
+    def __str__(self):
+        if self.value == 1:
+            return "yes"
+        if self.value == 2:
+            return "no"
+        if self.value == 3:
+            return "I don't know"
+        if self.value == 4:
+            return "trusted"
+
+def discard_trusted_nodes(trusted_node, nodes):
+    gen = (node for node in nodes if node.correct == Answer.IDK)
+    for node in gen:
+        if node.name == trusted_node.name:
+            print("Trusting node!")
+            node.correct = Answer.TRUSTED
+            print(str(node.correct))
+            print(node.get_tree(False))
+        discard_trusted_nodes(trusted_node, node.children)
+
+def discard_correct_nodes(correct_node, nodes):
+    gen = (node for node in nodes if node.correct == Answer.IDK)
+    for node in gen:
+        if node.frame == correct_node.frame:
+            print("Correcting node!")
+            node.correct = Answer.YES
+            print(node.get_tree(False))
+        discard_correct_nodes(correct_node, node.children)
+
+def top_down_strategy(node):
+    children_nodes_are_valid = True
+    invalid_child = None
+    gen = (child_node for child_node in node.children if child_node.correct == Answer.IDK)
+    for child_node in gen:
+        ask_about_node(child_node)
+        if child_node.correct == Answer.YES:
+            discard_correct_nodes(child_node, my_debugging_session.children)
+        if child_node.correct == Answer.TRUSTED:
+            discard_trusted_nodes(child_node, my_debugging_session.children)
+        if child_node.correct == Answer.NO:
+            children_nodes_are_valid = False
+            invalid_child = child_node
+            break
+    if children_nodes_are_valid:
+        return node
+    else:
+        return top_down_strategy(invalid_child)
+
+def ask_about_node(node):
+    print("Is the following node correct?")
+    print(node.get_tree(False))
+    options = ["Yes", "No", "I don't know", "Trusted"]
+    terminal_menu = TerminalMenu(options)
+    menu_entry_index = terminal_menu.show()
+    node.evaluate(options[menu_entry_index])
 
 class PrintNode(gdb.Command):
   """Print node of declarative debugging session"""
@@ -211,8 +344,8 @@ class MyFinishBreakpoint (gdb.FinishBreakpoint):
         self.commands = ("p \"joooder\"\n"
                          "reverse-step\n"
                          "save-returning-node\n"
-                         "next"
-                         "c")
+                         "next")
+                        # "c")
         #self.associated_frame = frame
     def stop (self):
         global my_debugging_session
@@ -229,7 +362,7 @@ def get_node_from_position(nodes, position):
 
 def get_node_from_frame(nodes, frame):
     for node in nodes:
-        if node.frame == frame:
+        if node.frame == frame and node.arguments_when_returning == []:
             return node
     return get_node_from_frame(nodes[-1].children, frame)
 
@@ -251,8 +384,8 @@ def main():
     gdb.execute("suspect-function partition(int*, int, int)")
     gdb.execute("final-point print_array<int, 6ul>(int const (&) [6ul])")
     gdb.execute("start")
-    gdb.execute("c")
-    gdb.execute("c")
+    # gdb.execute("start-declarative-debugging-session")
+
 
 my_debugging_session = DebuggingSession()
 
