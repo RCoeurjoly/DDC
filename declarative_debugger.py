@@ -341,8 +341,7 @@ class MyFinishBreakpoint (gdb.FinishBreakpoint):
     def __init__(self, position):
         super(MyFinishBreakpoint, self).__init__()
         self.position = position
-        self.commands = ("p \"joooder\"\n"
-                         "reverse-step\n"
+        self.commands = ("reverse-step\n"
                          "save-returning-node\n"
                          "next")
                         # "c")
