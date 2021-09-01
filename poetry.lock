@@ -138,6 +138,14 @@ typing-extensions = {version = ">=3.7.4,<4.0.0", markers = "python_version < \"3
 jupyter = ["ipywidgets (>=7.5.1,<8.0.0)"]
 
 [[package]]
+name = "simple-term-menu"
+version = "1.4.0"
+description = "A Python package which creates simple interactive menus on the command line."
+category = "main"
+optional = false
+python-versions = "~=3.5"
+
+[[package]]
 name = "six"
 version = "1.16.0"
 description = "Python 2 and 3 compatibility utilities"
@@ -168,7 +176,7 @@ testing = ["pytest (>=4.6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytes
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.6,<4.0"
-content-hash = "0185169b70cbfa32ac9862d4f2db1c89b0e77781066acbbb4b3b2ea74f8c096c"
+content-hash = "f09f35749f5e873a479dc2e065c69fdaa9c7b23ee8c07685d8ff4923e4e69de0"
 
 [metadata.files]
 atomicwrites = [
@@ -218,6 +226,10 @@ pytest = [
 rich = [
     {file = "rich-10.7.0-py3-none-any.whl", hash = "sha256:517b4e0efd064dd1fe821ca93dd3095d73380ceac1f0a07173d507d9b18f1396"},
     {file = "rich-10.7.0.tar.gz", hash = "sha256:13ac80676e12cf528dc4228dc682c8402f82577c2aa67191e294350fa2c3c4e9"},
+]
+simple-term-menu = [
+    {file = "simple-term-menu-1.4.0.tar.gz", hash = "sha256:6002cd5bfcd9951ec7262037033b726a449c18c49e5af49b80d6d5580d55309f"},
+    {file = "simple_term_menu-1.4.0-py3-none-any.whl", hash = "sha256:736e7970c4d0ec31f2de3ea57cacf44c6ed4f8ddc772fcdcb96e55d6ef2a1ad1"},
 ]
 six = [
     {file = "six-1.16.0-py2.py3-none-any.whl", hash = "sha256:8abb2f1d86890a2dfb989f9a77cfcfd3e47c2a354b01111771326f8aa26e0254"},
