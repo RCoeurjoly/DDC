@@ -6,8 +6,11 @@
 void swap(int* a, int* b)
 {
   int t = *a;
-  *a = *b;
-  *b = t;
+  //if (t != 10) {
+  if (true) {
+    *a = *b;
+    *b = t;
+  }
 }
 
 /* This function takes last element as pivot, places
@@ -15,7 +18,7 @@ void swap(int* a, int* b)
    array, and places all smaller (smaller than pivot)
    to left of pivot and all greater elements to right
    of pivot */
-int partition (int arr[], int low, int high)
+int partition (int arr[6], int low, int high)
 {
   int pivot = arr[high];    // pivot
   int i = (low - 1);  // Index of smaller element
@@ -38,7 +41,7 @@ int partition (int arr[], int low, int high)
    arr[] --> Array to be sorted,
    low  --> Starting index,
    high  --> Ending index */
-void quickSort(int arr[], int low, int high, std::string gdb_bug="")
+void quickSort(int arr[6], int low, int high, std::string gdb_bug="")
 {
   if (low < high)
     {
@@ -64,7 +67,7 @@ void print_array(T const(& arr)[n])
 // Driver program to test above functions
 int main()
 {
-  int arr[] = {10, 7, 8, 9, 1, 5};
+  int arr[6] = {10, 7, 8, 9, 1, 5};
   //          {1, 7, 8, 9, 10, 5};
   //          {1, 5, 8, 9, 10, 7};
   //          {1, 5, 8, 9, 10, 7};
