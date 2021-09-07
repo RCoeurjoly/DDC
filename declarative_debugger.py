@@ -210,14 +210,6 @@ class CommandFinalBreakpoint(gdb.Command):
 
 CommandFinalBreakpoint()
 
-class SetBreakpoint(gdb.Command):
-    """Set breakpoint on function or method"""
-    def __init__ (self):
-        super (SetBreakpoint, self).__init__ ("set-breakpoint", gdb.COMMAND_USER)
-
-    def invoke (self, arg, from_tty):
-        return
-
 class StartDeclarativeDebuggingSession(gdb.Command):
   """Set breakpoint on setField from Quickfix. It takes the tag number as argument"""
 
@@ -317,25 +309,6 @@ def ask_about_node(node):
     terminal_menu = TerminalMenu(options)
     menu_entry_index = terminal_menu.show()
     node.evaluate(options[menu_entry_index])
-
-class PrintNode(gdb.Command):
-  """Print node of declarative debugging session"""
-
-  def __init__ (self):
-    super (PrintNode, self).__init__ ("print-node", gdb.COMMAND_USER)
-
-  def invoke (self, frame_id, from_tty):
-    return
-
-class SaveStartNode(gdb.Command):
-  """Save the info at the moment a node is called in declarative debugging session"""
-
-  def __init__ (self):
-    super(SaveStartNode, self).__init__ ("save-start-node", gdb.COMMAND_USER)
-
-  def invoke (self, frame_id, from_tty):
-    frame = gdb.selected_frame() # Use the current frame
-    return frame
 
 class MyFinishBreakpoint (gdb.FinishBreakpoint):
     def __init__(self, position):
