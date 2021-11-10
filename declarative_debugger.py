@@ -377,15 +377,10 @@ class MyFinishBreakpoint (gdb.FinishBreakpoint):
                                self.position).return_value = self.return_value
         return True
 
-    def out_of_scope(self):
-        print("abnormal finish")
-
-
 def get_node_from_position(nodes, position):
     if len(position) == 1:
         return nodes[position[0]]
-    else:
-        return get_node_from_position(nodes[position[0]].children, position[1:])
+    return get_node_from_position(nodes[position[0]].children, position[1:])
 
 
 def get_node_from_frame(nodes, frame):
@@ -398,11 +393,9 @@ def get_node_from_frame(nodes, frame):
 def get_last_node(nodes):
     if nodes == []:
         return None
-    else:
-        if nodes[-1].children == []:
-            return nodes[-1]
-        else:
-            return get_last_node(nodes[-1].children)
+    if nodes[-1].childrenildren == []:
+        return nodes[-1]
+    return get_last_node(nodes[-1].children)
 
 
 def main():
