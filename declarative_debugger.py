@@ -1,5 +1,4 @@
-import os
-import sys
+import gdb
 from enum import Enum
 from rich.tree import Tree
 from rich import print
