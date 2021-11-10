@@ -251,14 +251,14 @@ class StartDeclarativeDebuggingSession(gdb.Command):
     def invoke(self, arg, from_tty):
         my_finish_breakpoint = [breakpoint for breakpoint in gdb.breakpoints(
         ) if breakpoint.commands == "finish-debugging-session\n"]
-        if len(my_finish_breakpoint) is not 0:
+        if len(my_finish_breakpoint) != 0:
             print(my_finish_breakpoint)
             hit_count = my_finish_breakpoint[0].hit_count
         else:
             hit_count = 0
-        while (hit_count == 0 and gdb.selected_inferior().pid is not 0):
+        while (hit_count == 0 and gdb.selected_inferior().pid != 0):
             gdb.execute("c")
-            if len(my_finish_breakpoint) is not 0:
+            if len(my_finish_breakpoint) != 0:
                 hit_count = my_finish_breakpoint[0].hit_count
             else:
                 hit_count = 0
