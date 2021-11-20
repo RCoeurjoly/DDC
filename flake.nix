@@ -37,6 +37,7 @@
           };
 
         devShell.x86_64-linux = pkgs.mkShell {
+          inputsFrom = builtins.attrValues self.packages.x86_64-linux;
           buildInputs = with pkgs; [ gdb rr poetry python3Packages.pylint python3Packages.autopep8 ];
         };
 
