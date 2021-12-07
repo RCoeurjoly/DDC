@@ -7,7 +7,7 @@ void swap(int* a, int* b)
 {
   int t = *a;
   if (t != 10) {
-    //if (true) {
+  // if (true) {
     *a = *b;
     *b = t;
   }
