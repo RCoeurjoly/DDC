@@ -1,5 +1,5 @@
 {
-  description = "Declarative debugger for C";
+  description = "Declarative debugger for C++";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs";
