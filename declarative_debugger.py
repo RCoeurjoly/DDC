@@ -1,5 +1,6 @@
 from enum import Enum
 import gdb
+from functions import *
 from rich.tree import Tree
 from rich import print
 from simple_term_menu import TerminalMenu
@@ -15,19 +16,6 @@ class DebuggingSession:
 
     def finish(self):
         self.finished = True
-
-class CommandFinishSession(gdb.Command):
-    """Set breakpoint for ending debugging session"""
-
-    def __init__(self):
-        super(CommandFinishSession, self).__init__(
-            "finish-debugging-session", gdb.COMMAND_USER)
-
-    def invoke(self, arg, from_tty):
-        global my_debugging_session
-        my_debugging_session.finished = True
-
-CommandFinishSession()
 
 class Node:
     def __init__(self, frame, arguments=[], global_variables=[], object_state=None):
@@ -125,6 +113,19 @@ class Node:
     def evaluate_answer(self, answer):
         self.iscorrect = answer
 
+class CommandFinishSession(gdb.Command):
+    """Set breakpoint for ending debugging session"""
+
+    def __init__(self):
+        super(CommandFinishSession, self).__init__(
+            "finish-debugging-session", gdb.COMMAND_USER)
+
+    def invoke(self, arg, from_tty):
+        global my_debugging_session
+        my_debugging_session.finish()
+
+CommandFinishSession()
+
 class SetBreak(gdb.Breakpoint):
     def __init__(self, function, final=False):
         gdb.Breakpoint.__init__(self, function)
@@ -185,29 +186,6 @@ class CommandAddNodeToSession(gdb.Command):
 
 CommandAddNodeToSession()
 
-def update_nodes_weight(nodes, position):
-    node_and_parents_positions = [position[:len(position)-n] for n in range(len(position))]
-    for node_position in node_and_parents_positions:
-        get_node_from_position(nodes,
-                               node_position).weight += 1
-
-def add_node_to_list(nodes, node, position):
-    if nodes == [] or not nodes[-1].frame.is_valid() or nodes[-1].frame not in get_parent_frames(node):
-        position.append(len(nodes))
-        nodes.append(node)
-        return position
-    else:
-        position.append(len(nodes)-1)
-        return add_node_to_list(nodes[-1].children, node, position)
-
-def get_parent_frames(node):
-    parents = []
-    aux_frame = node.frame.older()
-    while aux_frame is not None:
-        parents.append(aux_frame)
-        aux_frame = aux_frame.older()
-    return parents
-
 class CommandSuspectFunction(gdb.Command):
     """Set breakpoint for ending debugging session"""
 
@@ -258,13 +236,20 @@ class StartDeclarativeDebuggingSession(gdb.Command):
         options = ["Top-down", "Divide and Query (Shapiro)"]
         terminal_menu = TerminalMenu(options)
         menu_entry_index = terminal_menu.show()
+        stategies_dict = {
+            "Top-down": top_down_strategy,
+            "Divide and Query (Shapiro)": divide_and_query_shapiro_strategy
+        }
         print(f"You have selected {options[menu_entry_index]}!")
-        buggy_node = top_down_strategy(my_debugging_session)
-        if buggy_node is not my_debugging_session:
+        marked_execution_tree = my_debugging_session.children[0]
+        strategy = stategies_dict[options[menu_entry_index]]
+        buggy_node = general_debugging_algorithm(marked_execution_tree, strategy)
+        if buggy_node is not None:
             print("Buggy node found")
-            print(buggy_node.get_tree(False))
+            print(buggy_node.get_tree())
         else:
             print("No buggy node found")
+
 StartDeclarativeDebuggingSession()
 
 class PrintNodes(gdb.Command):
@@ -279,88 +264,6 @@ class PrintNodes(gdb.Command):
             print(node.get_tree())
 
 PrintNodes()
-
-class Answer(Enum):
-    YES = 1
-    NO = 2
-    IDK = 3
-    TRUSTED = 4
-
-    def describe(self):
-        # self is the member here
-        return self.name, self.value
-
-    def __str__(self):
-        if self.value == 1:
-            return "yes"
-        if self.value == 2:
-            return "no"
-        if self.value == 3:
-            return "I don't know"
-        if self.value == 4:
-            return "trusted"
-
-def discard_trusted_nodes(trusted_node, nodes):
-    gen = (node for node in nodes if node.iscorrect == Answer.IDK)
-    for node in gen:
-        if node.name == trusted_node.name:
-            node.iscorrect = Answer.TRUSTED
-        discard_trusted_nodes(trusted_node, node.children)
-
-def discard_correct_nodes(correct_node, nodes):
-    gen = (node for node in nodes if node.iscorrect == Answer.IDK)
-    for node in gen:
-        if node.frame == correct_node.frame:
-            node.iscorrect = Answer.YES
-        discard_correct_nodes(correct_node, node.children)
-
-def top_down_strategy(node):
-    global my_debugging_session
-    children_nodes_are_valid = True
-    invalid_child = None
-    gen = (child_node for child_node in node.children if child_node.iscorrect == Answer.IDK)
-    for child_node in gen:
-        ask_about_node(child_node)
-        if child_node.iscorrect == Answer.YES:
-            discard_correct_nodes(child_node, my_debugging_session.children)
-        if child_node.iscorrect == Answer.TRUSTED:
-            discard_trusted_nodes(child_node, my_debugging_session.children)
-        if child_node.iscorrect == Answer.NO:
-            children_nodes_are_valid = False
-            invalid_child = child_node
-            break
-    if children_nodes_are_valid:
-        return node
-    else:
-        return top_down_strategy(invalid_child)
-
-def divide_and_query_Shapiro_strategy(node):
-    # We select the child node whose weight is the closest to w(n)/2
-    # w(child node) being >= w(n)/2
-    for child in node.children:
-        child.weight
-    pass
-
-
-def divide_and_query_Hirunkitti_strategy(node):
-    # We select the child node whose weight is the closest to w(n)/2
-    # w(child node) being >= w(n)/2
-    # or w(child node) being <= w(n)/2
-    distance = node.weight/2
-    choosen_node = node
-    for child in node.children:
-        if abs(child.weight - node.weight/2) < distance:
-            distance = abs(child.weight - node.weight/2)
-            choosen_node = child
-    return choosen_node
-
-def ask_about_node(node):
-    print("Is the following node correct?")
-    print(node.get_tree(False))
-    options = ["Yes", "No", "I don't know", "Trusted"]
-    terminal_menu = TerminalMenu(options)
-    menu_entry_index = terminal_menu.show()
-    node.evaluate(options[menu_entry_index])
 
 class MyFinishBreakpoint (gdb.FinishBreakpoint):
     def __init__(self, position):
@@ -378,32 +281,4 @@ class MyFinishBreakpoint (gdb.FinishBreakpoint):
                                self.position).return_value = self.return_value
         return True
 
-def get_node_from_position(nodes, position):
-    if len(position) == 1:
-        return nodes[position[0]]
-    return get_node_from_position(nodes[position[0]].children, position[1:])
-
-def get_node_from_frame(nodes, frame):
-    for node in nodes:
-        if node.frame == frame and node.arguments_when_returning == []:
-            return node
-    return get_node_from_frame(nodes[-1].children, frame)
-
-def get_last_node(nodes):
-    if nodes == []:
-        return None
-    if nodes[-1].childrenildren == []:
-        return nodes[-1]
-    return get_last_node(nodes[-1].children)
-
 my_debugging_session = DebuggingSession()
-
-def demo_top_down():
-    gdb.execute("set pagination off")
-    gdb.execute("suspect-function quickSort(int*, int, int)")
-    gdb.execute("suspect-function quickSort(int*, int, int, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >)")
-    gdb.execute("suspect-function swap(int*, int*)")
-    gdb.execute("suspect-function partition(int*, int, int)")
-    gdb.execute("final-point print_array<int, 6ul>(int const (&) [6ul])")
-    gdb.execute("start")
-    gdb.execute("start-declarative-debugging-session")
