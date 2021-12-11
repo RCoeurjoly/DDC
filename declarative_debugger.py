@@ -6,7 +6,7 @@ from simple_term_menu import TerminalMenu
 
 class DebuggingSession:
     def __init__(self):
-        self.children = []
+        self.node = None
         self.started = False
         self.finished = False
 
@@ -152,9 +152,8 @@ class SaveReturningNode(gdb.Command):
         arguments = [symbol for symbol in gdb.newest_frame().block()
                      if symbol.is_argument]
         my_node = get_node_from_frame(
-            my_debugging_session.children, gdb.newest_frame())
+            my_debugging_session.node, gdb.newest_frame())
         my_node.finish(arguments=arguments)
-        #my_node.arguments_when_returning = [1, 2]
         gdb.execute("n")
         return
 
@@ -173,11 +172,18 @@ class CommandAddNodeToSession(gdb.Command):
         arguments = [symbol for symbol in gdb.selected_frame().block()
                      if symbol.is_argument]
         my_node = Node(gdb.selected_frame(), arguments)
-        position = add_node_to_list(my_debugging_session.children, my_node, [])
-        update_nodes_weight(my_debugging_session.children, position)
+        if (my_debugging_session.node == None):
+            # First node
+            my_debugging_session.node = my_node
+            position = []
+        else:
+            position = add_node_to_tree(my_debugging_session.node, my_node, [])
+        print("Position of added node:" + str(position))
+        update_nodes_weight(my_debugging_session.node, position, 1)
         my_finish_br = MyFinishBreakpoint(position)
-        my_finish_breakpoint = [breakpoint for breakpoint in gdb.breakpoints(
-        ) if breakpoint.number == my_finish_br.number][0]
+        my_finish_breakpoint = [breakpoint
+                                for breakpoint in gdb.breakpoints()
+                                if breakpoint.number == my_finish_br.number][0]
         my_br = gdb.Breakpoint(my_finish_breakpoint.location, temporary=False)
         my_br.commands = ("save-returning-node\n")
         #    "c\n")
@@ -239,14 +245,24 @@ class StartDeclarativeDebuggingSession(gdb.Command):
             "Top-down": top_down_strategy
         }
         print(f"You have selected {options[menu_entry_index]}!")
-        marked_execution_tree = my_debugging_session.children[0]
+        marked_execution_tree = my_debugging_session.node
+        answer = ask_about_node(marked_execution_tree)
+        if answer in [Answer.YES, Answer.TRUSTED]:
+            print("No buggy node found")
+            return
+        elif answer is Answer.IDK:
+            print("If you don't know, I cannot help you")
+            return
+        print_tree(marked_execution_tree)
+        marked_execution_tree.evaluate_answer(Answer.NO)
+        print_tree(marked_execution_tree)
         strategy = strategies_dict[options[menu_entry_index]]
         buggy_node = general_debugging_algorithm(marked_execution_tree, strategy)
-        if buggy_node is not None:
-            print("Buggy node found")
-            print(buggy_node.get_tree())
-        else:
+        if buggy_node == None:
             print("No buggy node found")
+            return
+        print("Buggy node found")
+        print(buggy_node.get_tree())
 
 StartDeclarativeDebuggingSession()
 
@@ -258,8 +274,7 @@ class PrintNodes(gdb.Command):
 
     def invoke(self, arg, from_tty):
         global my_debugging_session
-        for node in my_debugging_session.children:
-            print(node.get_tree())
+        print(my_debugging_session.node.get_tree())
 
 PrintNodes()
 
@@ -275,7 +290,7 @@ class MyFinishBreakpoint (gdb.FinishBreakpoint):
 
     def stop(self):
         global my_debugging_session
-        get_node_from_position(my_debugging_session.children,
+        get_node_from_position(my_debugging_session.node,
                                self.position).return_value = self.return_value
         return True
 
@@ -287,36 +302,86 @@ def general_debugging_algorithm(marked_execution_tree, strategy):
     while (marked_execution_tree is not None
            and not (marked_execution_tree.iscorrect == Answer.NO
                     and len(marked_execution_tree.children) == 0)):
-        selected_node, _ = select_node(marked_execution_tree, strategy)
+        assert(marked_execution_tree.iscorrect == Answer.NO)
+        selected_node, _, position = select_node(marked_execution_tree, strategy)
+        print("position: " + str(position))
         answer = ask_about_node(selected_node)
         selected_node.iscorrect = answer
+        name = selected_node.name
+        frame = selected_node.frame
         if (answer == Answer.NO):
             marked_execution_tree = selected_node
         elif (answer == Answer.YES):
-            pass
+            # Remove the node and remove the weight from all its parents
+            # Remove nodes with the same frame and remove the weight from all its parents
+            update_nodes_weight(marked_execution_tree, position,
+                                - get_node_from_position(marked_execution_tree, position).weight)
+            remove_node_from_tree(marked_execution_tree, position)
+            found = True
+            while (found == True and marked_execution_tree != None):
+                _, found, position = find_node_with_frame(marked_execution_tree, [], frame)
+                print()
+                if found == False:
+                    break
+                remove_node_from_tree(marked_execution_tree, position)
         elif (answer == Answer.TRUSTED):
-            pass
+            # Remove the node and remove the weight from all its parents
+            # Remove nodes with the same name and remove the weight from all its parents
+            update_nodes_weight(marked_execution_tree, position,
+                                - get_node_from_position(marked_execution_tree, position).weight)
+            remove_node_from_tree(marked_execution_tree, position)
+            found = True
+            while (found == True and marked_execution_tree != None):
+                _, found, position = find_node_with_name(marked_execution_tree, [], name)
+                if found is False:
+                    break
+                remove_node_from_tree(marked_execution_tree, position)
         elif (answer == Answer.IDK):
-            pass
+            # Remove the node and remove the weight from all its parents
+            update_nodes_weight(marked_execution_tree, position,
+                                - get_node_from_position(marked_execution_tree, position).weight)
+            remove_node_from_tree(marked_execution_tree, position)
     return marked_execution_tree
 
 def select_node(marked_execution_tree, strategy):
-    return strategy(marked_execution_tree)
+    return strategy(marked_execution_tree, [])
 
-def update_nodes_weight(nodes, position):
+def update_nodes_weight(marked_execution_tree, position, weight_delta):
     node_and_parents_positions = [position[:len(position)-n] for n in range(len(position))]
     for node_position in node_and_parents_positions:
-        get_node_from_position(nodes,
-                               node_position).weight += 1
+        print("Going to update weight of following node: " + str(node_position))
+        get_node_from_position(marked_execution_tree,
+                               node_position).weight += weight_delta
 
-def add_node_to_list(nodes, node, position):
-    if nodes == [] or not nodes[-1].frame.is_valid() or nodes[-1].frame not in get_parent_frames(node):
-        position.append(len(nodes))
-        nodes.append(node)
+def add_node_to_tree(marked_execution_tree, node, position):
+    """A"""
+    print("position passed to add_node_to_tree:" + str(position))
+    if (len(marked_execution_tree.children) == 0
+        or not marked_execution_tree.children[-1].frame.is_valid() # Or last child has finished
+        or marked_execution_tree.children[-1].frame not in get_parent_frames(node)):
+        # if marked_execution_tree.children == []:
+        #     print("if marked_execution_tree == []:")
+        #     marked_execution_tree.children(append(node))
+        #     position.append(len(marked_execution_tree.children)-1)
+        #     return position
+        # if not marked_execution_tree[-1].frame.is_valid():
+        #     print(marked_execution_tree[-1].name)
+        #     print("not marked_execution_tree[-1].frame.is_valid():")
+        #     marked_execution_tree.append(node)
+        #     position.append(len(marked_execution_tree)-1)
+        #     return position
+        # if marked_execution_tree[-1].frame not in get_parent_frames(node):
+        #     print(marked_execution_tree[-1].name)
+        #     print("marked_execution_tree[-1].frame not in get_parent_frames(node):")
+        marked_execution_tree.children.append(node)
+        position.append(len(marked_execution_tree.children)-1)
         return position
     else:
-        position.append(len(nodes)-1)
-        return add_node_to_list(nodes[-1].children, node, position)
+        print(marked_execution_tree.children[-1].name)
+        print("cuantos hijos:" + str(len(marked_execution_tree.children[-1].children)))
+        print("Llamada recursiva")
+        position.append(len(marked_execution_tree.children)-1)
+        return add_node_to_tree(marked_execution_tree.children[-1], node, position)
 
 def get_parent_frames(node):
     parents = []
@@ -347,8 +412,8 @@ class Answer(Enum):
         if self.value == 4:
             return "trusted"
 
-def discard_trusted_nodes(trusted_node, nodes):
-    gen = (node for node in nodes if node.iscorrect == Answer.IDK)
+def discard_trusted_nodes(trusted_node, marked_execution_tree):
+    gen = (node for node in marked_execution_tree if node.iscorrect == Answer.IDK)
     for node in gen:
         if node.name == trusted_node.name:
             node.iscorrect = Answer.TRUSTED
@@ -361,15 +426,56 @@ def discard_correct_nodes(correct_node, nodes):
             node.iscorrect = Answer.YES
         discard_correct_nodes(correct_node, node.children)
 
-def top_down_strategy(marked_execution_tree):
+def top_down_strategy(marked_execution_tree, position):
+    """Search for closest undefined node.
+    Returns:
+    Found: bool
+    Node
+    Position: list of int
+    """
     if (marked_execution_tree.iscorrect == Answer.IDK):
-        return marked_execution_tree, True
+        return marked_execution_tree, True, position
     else:
-        for child in marked_execution_tree.children:
-            tmp_marked_execution_tree, found = top_down_strategy(child)
+        for index, child in enumerate(marked_execution_tree.children):
+            tmp_marked_execution_tree, found, tmp_position = top_down_strategy(child, position)
             if found:
-                return tmp_marked_execution_tree, found
-    return None, False
+                tmp_position.append(index)
+                return tmp_marked_execution_tree, found, tmp_position
+    return None, False, []
+
+def find_node_with_frame(marked_execution_tree, position, frame):
+    """Search for closest node with frame.
+    Returns:
+    Found: bool
+    Node
+    Position: list of int
+    """
+    if (marked_execution_tree.frame == frame):
+        return marked_execution_tree, True, position
+    else:
+        for index, child in enumerate(marked_execution_tree.children):
+            tmp_marked_execution_tree, found, tmp_position = find_node_with_frame(child, position, frame)
+            if found:
+                tmp_position.append(index)
+                return tmp_marked_execution_tree, found, tmp_position
+    return None, False, []
+
+def find_node_with_name(marked_execution_tree, position, name):
+    """Search for closest node with name.
+    Returns:
+    Found: bool
+    Node
+    Position: list of int
+    """
+    if (marked_execution_tree.name == name):
+        return marked_execution_tree, True, position
+    else:
+        for index, child in enumerate(marked_execution_tree.children):
+            tmp_marked_execution_tree, found, tmp_position = find_node_with_name(child, position, name)
+            if found:
+                tmp_position.append(index)
+                return tmp_marked_execution_tree, found, tmp_position
+    return None, False, []
 
 def divide_and_query_Shapiro_strategy(node):
     # We select the child node whose weight is the closest to w(n)/2
@@ -404,23 +510,21 @@ def ask_about_node(node):
     }
     return answers_dict[options[menu_entry_index]]
 
-def get_node_from_position(nodes, position):
+def get_node_from_position(marked_execution_tree, position):
+    # print("get_node_from_position, position: " + str(position))
+    if len(position) == 0:
+        return marked_execution_tree
+    return get_node_from_position(marked_execution_tree.children[position[0]], position[1:])
+
+def remove_node_from_tree(marked_execution_tree, position):
     if len(position) == 1:
-        return nodes[position[0]]
-    return get_node_from_position(nodes[position[0]].children, position[1:])
+        return marked_execution_tree.children.pop(position[0])
+    return remove_node_from_tree(marked_execution_tree.children[position[0]], position[1:])
 
-def get_node_from_frame(nodes, frame):
-    for node in nodes:
-        if node.frame == frame and node.arguments_when_returning == []:
-            return node
-    return get_node_from_frame(nodes[-1].children, frame)
-
-def get_last_node(nodes):
-    if nodes == []:
-        return None
-    if nodes[-1].childrenildren == []:
-        return nodes[-1]
-    return get_last_node(nodes[-1].children)
+def get_node_from_frame(marked_execution_tree, frame):
+    if marked_execution_tree.frame == frame and marked_execution_tree.arguments_when_returning == []:
+        return marked_execution_tree
+    return get_node_from_frame(marked_execution_tree.children[-1], frame)
 
 def print_tree(node):
     print(node.get_tree())
