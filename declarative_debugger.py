@@ -50,14 +50,15 @@ class Node:
         self.children = []
         self.iscorrect = Answer.IDK
 
-    def get_tree(self, get_children=True):
+    def get_tree(self, get_children=True, get_weight=True):
         tree = Tree(self.name)
         correct_tree = Tree("correctness")
         correct_tree.add(str(self.iscorrect))
         tree.add(correct_tree)
-        weight_tree = Tree("weight")
-        weight_tree.add(str(self.weight))
-        tree.add(weight_tree)
+        if get_weight:
+            weight_tree = Tree("weight")
+            weight_tree.add(str(self.weight))
+            tree.add(weight_tree)
         if self.arguments_on_entry_tree != self.arguments_when_returning_tree:
             tree.add(self.arguments_on_entry_tree)
             tree.add(self.arguments_when_returning_tree)
@@ -309,7 +310,7 @@ def general_debugging_algorithm(marked_execution_tree, strategy):
         answer = ask_about_node(selected_node)
         selected_node.iscorrect = answer
         name = selected_node.name
-        node_tree = selected_node.get_tree()
+        node_tree = selected_node.get_tree(get_weight=False)
         if (answer == Answer.NO):
             marked_execution_tree = selected_node
         elif answer in [Answer.YES, Answer.IDK, Answer.TRUSTED]:
@@ -461,7 +462,7 @@ def find_node_with_node_tree(marked_execution_tree, position, node_tree):
     Node
     Position: list of int
     """
-    if (marked_execution_tree.get_tree() == node_tree):
+    if (marked_execution_tree.get_tree(get_weight=False) == node_tree):
         return marked_execution_tree, True, position
     else:
         for index, child in enumerate(marked_execution_tree.children):
