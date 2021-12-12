@@ -19,7 +19,6 @@ class DebuggingSession:
 class Node:
     def __init__(self, frame, arguments=[], global_variables=[], object_state=None):
         self.frame = frame
-        # self.frame_hash = hash(frame)
         self.name = frame.name()
         self.weight = 0
         self.arguments_on_entry = arguments
@@ -49,12 +48,6 @@ class Node:
         self.return_value = None
         self.children = []
         self.iscorrect = Answer.IDK
-
-    def __del__(self):
-        print("Destructor of node called")
-
-    def __del__(self):
-        print("Destructor of node called")
 
     def get_tree(self, get_children=True, get_weight=True):
         tree = Tree(self.name)
@@ -185,7 +178,6 @@ class CommandAddNodeToSession(gdb.Command):
             position = []
         else:
             position = add_node_to_tree(my_debugging_session.node, my_node, [])
-        print("Position of added node:" + str(position))
         update_nodes_weight(my_debugging_session.node, position, 1)
         my_finish_br = MyFinishBreakpoint(position)
         my_finish_breakpoint = [breakpoint
@@ -245,11 +237,12 @@ class StartDeclarativeDebuggingSession(gdb.Command):
             else:
                 hit_count = 0
         print("Finished building debugging tree. Please choose debugging strategy")
-        options = ["Top-down"]
+        options = ["Top-down", "Divide and Query (Hirunkitti)"]
         terminal_menu = TerminalMenu(options)
         menu_entry_index = terminal_menu.show()
         strategies_dict = {
-            "Top-down": top_down_strategy
+            "Top-down": top_down_strategy,
+            "Divide and Query (Hirunkitti)": divide_and_query_Hirunkitti_strategy
         }
         print(f"You have selected {options[menu_entry_index]}!")
         marked_execution_tree = my_debugging_session.node
@@ -260,9 +253,7 @@ class StartDeclarativeDebuggingSession(gdb.Command):
         elif answer is Answer.IDK:
             print("If you don't know, I cannot help you")
             return
-        print_tree(marked_execution_tree)
         marked_execution_tree.evaluate_answer(Answer.NO)
-        print_tree(marked_execution_tree)
         strategy = strategies_dict[options[menu_entry_index]]
         buggy_node = general_debugging_algorithm(marked_execution_tree, strategy)
         if buggy_node == None:
@@ -312,7 +303,6 @@ def general_debugging_algorithm(marked_execution_tree, strategy):
         assert(marked_execution_tree.iscorrect == Answer.NO)
         selected_node, _, position = select_node(marked_execution_tree, strategy)
         assert(selected_node.weight > 0)
-        print("position: " + str(position))
         answer = ask_about_node(selected_node)
         selected_node.iscorrect = answer
         name = selected_node.name
@@ -324,33 +314,32 @@ def general_debugging_algorithm(marked_execution_tree, strategy):
             update_nodes_weight(marked_execution_tree, position,
                                 - get_node_from_position(marked_execution_tree, position).weight)
             remove_node_from_tree(marked_execution_tree, position)
-            print("Arbol despues de eliminar el nodo")
-            print(marked_execution_tree.get_tree(True))
         if (answer == Answer.YES):
             # Remove nodes with the same node_tree and remove the weight from all its parents
             found = True
-            while (found == True and marked_execution_tree != None):
+            while (True):
                 _, found, position = find_node_with_node_tree(marked_execution_tree, [], node_tree)
-                print()
                 if found == False:
                     break
-                print("node_tree: removing node " + name)
                 update_nodes_weight(marked_execution_tree, position,
                                     - get_node_from_position(marked_execution_tree, position).weight)
-                remove_node_from_tree(marked_execution_tree, position)
+                deleted_tree = remove_node_from_tree(marked_execution_tree, position)
+                if deleted_tree:
+                    marked_execution_tree = None
+                    break
         elif (answer == Answer.TRUSTED):
             # Remove nodes with the same name and remove the weight from all its parents
             found = True
-            while (found == True and marked_execution_tree != None):
+            while (True):
                 _, found, position = find_node_with_name(marked_execution_tree, [], name)
                 if found is False:
                     break
                 update_nodes_weight(marked_execution_tree, position,
                                     - get_node_from_position(marked_execution_tree, position).weight)
-                result = remove_node_from_tree(marked_execution_tree, position)
-                if result:
+                deleted_tree = remove_node_from_tree(marked_execution_tree, position)
+                if deleted_tree:
                     marked_execution_tree = None
-                # print(marked_execution_tree.get_tree())
+                    break
     return marked_execution_tree
 
 def select_node(marked_execution_tree, strategy):
@@ -360,37 +349,17 @@ def update_nodes_weight(marked_execution_tree, position, weight_delta):
     node_and_parents_positions = [position[:len(position)-n] for n in range(len(position))]
     node_and_parents_positions.append([])
     for node_position in node_and_parents_positions:
-        print("Going to update weight of following node: " + str(node_position))
         get_node_from_position(marked_execution_tree,
                                node_position).weight += weight_delta
 
 def add_node_to_tree(marked_execution_tree, node, position):
-    """A"""
-    print("position passed to add_node_to_tree:" + str(position))
     if (len(marked_execution_tree.children) == 0
         or not marked_execution_tree.children[-1].frame.is_valid() # Or last child has finished
         or marked_execution_tree.children[-1].frame not in get_parent_frames(node)):
-        # if marked_execution_tree.children == []:
-        #     print("if marked_execution_tree == []:")
-        #     marked_execution_tree.children(append(node))
-        #     position.append(len(marked_execution_tree.children)-1)
-        #     return position
-        # if not marked_execution_tree[-1].frame.is_valid():
-        #     print(marked_execution_tree[-1].name)
-        #     print("not marked_execution_tree[-1].frame.is_valid():")
-        #     marked_execution_tree.append(node)
-        #     position.append(len(marked_execution_tree)-1)
-        #     return position
-        # if marked_execution_tree[-1].frame not in get_parent_frames(node):
-        #     print(marked_execution_tree[-1].name)
-        #     print("marked_execution_tree[-1].frame not in get_parent_frames(node):")
         marked_execution_tree.children.append(node)
         position.append(len(marked_execution_tree.children)-1)
         return position
     else:
-        print(marked_execution_tree.children[-1].name)
-        print("cuantos hijos:" + str(len(marked_execution_tree.children[-1].children)))
-        print("Llamada recursiva")
         position.append(len(marked_execution_tree.children)-1)
         return add_node_to_tree(marked_execution_tree.children[-1], node, position)
 
@@ -465,7 +434,7 @@ def find_node_with_node_tree(marked_execution_tree, position, node_tree):
         return marked_execution_tree, True, position
     else:
         for index, child in enumerate(marked_execution_tree.children):
-            tmp_marked_execution_tree, found, tmp_position = find_node_with_frame(child, position, node_tree)
+            tmp_marked_execution_tree, found, tmp_position = find_node_with_node_tree(child, position, node_tree)
             if found:
                 tmp_position.insert(0, index)
                 return tmp_marked_execution_tree, found, tmp_position
@@ -479,44 +448,34 @@ def find_node_with_name(marked_execution_tree, position, name):
     Position: list of int
     """
     if (marked_execution_tree.name == name):
-        print("find_node_with_name node found!!!! in position " + str(position))
-        print(marked_execution_tree.name)
         return marked_execution_tree, True, position
     else:
         for index, child in enumerate(marked_execution_tree.children):
-            print("looking in branch " + str(index) + " of the following node")
-            print(marked_execution_tree.get_tree())
             tmp_marked_execution_tree, found, tmp_position = find_node_with_name(child, position, name)
             if found:
                 tmp_position.insert(0, index)
-                print("found " + name + " in branch, in position " + str(tmp_position))
                 return tmp_marked_execution_tree, found, tmp_position
-    print("find_node_with_name node not found :(:(:(:(:(:(")
-    # print(marked_execution_tree.get_tree())
     return None, False, []
 
-def divide_and_query_Shapiro_strategy(node):
-    # We select the child node whose weight is the closest to w(n)/2
-    # w(child node) being >= w(n)/2
-    for child in node.children:
-        child.weight
-    pass
-
-def divide_and_query_Hirunkitti_strategy(node):
+def divide_and_query_Hirunkitti_strategy(marked_execution_tree, position):
     # We select the child node whose weight is the closest to w(n)/2
     # w(child node) being >= w(n)/2
     # or w(child node) being <= w(n)/2
-    distance = node.weight/2
-    choosen_node = node
-    for child in node.children:
-        if abs(child.weight - node.weight/2) < distance:
-            distance = abs(child.weight - node.weight/2)
+    assert(len(marked_execution_tree.children) > 0)
+    pivot = marked_execution_tree.weight/2
+    distance = marked_execution_tree.weight/2
+    choosen_node = marked_execution_tree
+    position = []
+    for index, child in enumerate(marked_execution_tree.children):
+        if abs(child.weight - pivot) < distance:
+            distance = abs(child.weight - pivot)
             choosen_node = child
-    return choosen_node
+            position = [index]
+    return choosen_node, True, position
 
 def ask_about_node(node):
     print("Is the following node correct?")
-    print(node.get_tree(False))
+    print(node.get_tree(get_children=False))
     options = ["Yes", "No", "I don't know", "Trusted"]
     terminal_menu = TerminalMenu(options)
     menu_entry_index = terminal_menu.show()
@@ -529,21 +488,15 @@ def ask_about_node(node):
     return answers_dict[options[menu_entry_index]]
 
 def get_node_from_position(marked_execution_tree, position):
-    # print("get_node_from_position, position: " + str(position))
     if len(position) == 0:
         return marked_execution_tree
     return get_node_from_position(marked_execution_tree.children[position[0]], position[1:])
 
 def remove_node_from_tree(marked_execution_tree, position):
-    """Returns true if """
+    """Returns true if marked_execution_tree should be deleted"""
     if len(position) == 0:
-        print("Kaboooooooooooom")
-        del marked_execution_tree
-        marked_execution_tree = None
         return True
     elif len(position) == 1:
-        print(marked_execution_tree.name)
-        print("Removing node from children list in position:" + str(position))
         marked_execution_tree.children.pop(position[0])
         return False
     else:
