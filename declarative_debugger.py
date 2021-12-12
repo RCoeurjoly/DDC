@@ -50,6 +50,12 @@ class Node:
         self.children = []
         self.iscorrect = Answer.IDK
 
+    def __del__(self):
+        print("Destructor of node called")
+
+    def __del__(self):
+        print("Destructor of node called")
+
     def get_tree(self, get_children=True, get_weight=True):
         tree = Tree(self.name)
         correct_tree = Tree("correctness")
@@ -335,23 +341,16 @@ def general_debugging_algorithm(marked_execution_tree, strategy):
         elif (answer == Answer.TRUSTED):
             # Remove nodes with the same name and remove the weight from all its parents
             found = True
-            counter = 1
-            print("Finding same function")
             while (found == True and marked_execution_tree != None):
-                print("Counter:" + str(counter))
-                counter += 1
-                if counter > 10:
-                    break
                 _, found, position = find_node_with_name(marked_execution_tree, [], name)
-                print("Position returned by find_node_with_name: " + str(position))
-                print("found:" + str(found))
                 if found is False:
                     break
-                print("name: removing node " + name + ", which is in position " + str(position))
                 update_nodes_weight(marked_execution_tree, position,
                                     - get_node_from_position(marked_execution_tree, position).weight)
-                remove_node_from_tree(marked_execution_tree, position)
-                print(marked_execution_tree.get_tree())
+                result = remove_node_from_tree(marked_execution_tree, position)
+                if result:
+                    marked_execution_tree = None
+                # print(marked_execution_tree.get_tree())
     return marked_execution_tree
 
 def select_node(marked_execution_tree, strategy):
@@ -536,15 +535,19 @@ def get_node_from_position(marked_execution_tree, position):
     return get_node_from_position(marked_execution_tree.children[position[0]], position[1:])
 
 def remove_node_from_tree(marked_execution_tree, position):
+    """Returns true if """
     if len(position) == 0:
+        print("Kaboooooooooooom")
+        del marked_execution_tree
         marked_execution_tree = None
-        return
-    if len(position) == 1:
+        return True
+    elif len(position) == 1:
         print(marked_execution_tree.name)
         print("Removing node from children list in position:" + str(position))
         marked_execution_tree.children.pop(position[0])
-        return
-    return remove_node_from_tree(marked_execution_tree.children[position[0]], position[1:])
+        return False
+    else:
+        return remove_node_from_tree(marked_execution_tree.children[position[0]], position[1:])
 
 def get_node_from_frame(marked_execution_tree, frame):
     if marked_execution_tree.frame == frame and marked_execution_tree.arguments_when_returning == []:
