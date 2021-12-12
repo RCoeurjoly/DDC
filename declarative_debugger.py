@@ -304,43 +304,53 @@ def general_debugging_algorithm(marked_execution_tree, strategy):
                     and len(marked_execution_tree.children) == 0)):
         assert(marked_execution_tree.iscorrect == Answer.NO)
         selected_node, _, position = select_node(marked_execution_tree, strategy)
+        assert(selected_node.weight > 0)
         print("position: " + str(position))
         answer = ask_about_node(selected_node)
         selected_node.iscorrect = answer
         name = selected_node.name
-        frame = selected_node.frame
+        node_tree = selected_node.get_tree()
         if (answer == Answer.NO):
             marked_execution_tree = selected_node
-        elif (answer == Answer.YES):
+        elif answer in [Answer.YES, Answer.IDK, Answer.TRUSTED]:
             # Remove the node and remove the weight from all its parents
-            # Remove nodes with the same frame and remove the weight from all its parents
             update_nodes_weight(marked_execution_tree, position,
                                 - get_node_from_position(marked_execution_tree, position).weight)
             remove_node_from_tree(marked_execution_tree, position)
+            print("Arbol despues de eliminar el nodo")
+            print(marked_execution_tree.get_tree(True))
+        if (answer == Answer.YES):
+            # Remove nodes with the same node_tree and remove the weight from all its parents
             found = True
             while (found == True and marked_execution_tree != None):
-                _, found, position = find_node_with_frame(marked_execution_tree, [], frame)
+                _, found, position = find_node_with_node_tree(marked_execution_tree, [], node_tree)
                 print()
                 if found == False:
                     break
+                print("node_tree: removing node " + name)
+                update_nodes_weight(marked_execution_tree, position,
+                                    - get_node_from_position(marked_execution_tree, position).weight)
                 remove_node_from_tree(marked_execution_tree, position)
         elif (answer == Answer.TRUSTED):
-            # Remove the node and remove the weight from all its parents
             # Remove nodes with the same name and remove the weight from all its parents
-            update_nodes_weight(marked_execution_tree, position,
-                                - get_node_from_position(marked_execution_tree, position).weight)
-            remove_node_from_tree(marked_execution_tree, position)
             found = True
+            counter = 1
+            print("Finding same function")
             while (found == True and marked_execution_tree != None):
+                print("Counter:" + str(counter))
+                counter += 1
+                if counter > 10:
+                    break
                 _, found, position = find_node_with_name(marked_execution_tree, [], name)
+                print("Position returned by find_node_with_name: " + str(position))
+                print("found:" + str(found))
                 if found is False:
                     break
+                print("name: removing node " + name + ", which is in position " + str(position))
+                update_nodes_weight(marked_execution_tree, position,
+                                    - get_node_from_position(marked_execution_tree, position).weight)
                 remove_node_from_tree(marked_execution_tree, position)
-        elif (answer == Answer.IDK):
-            # Remove the node and remove the weight from all its parents
-            update_nodes_weight(marked_execution_tree, position,
-                                - get_node_from_position(marked_execution_tree, position).weight)
-            remove_node_from_tree(marked_execution_tree, position)
+                print(marked_execution_tree.get_tree())
     return marked_execution_tree
 
 def select_node(marked_execution_tree, strategy):
@@ -348,6 +358,7 @@ def select_node(marked_execution_tree, strategy):
 
 def update_nodes_weight(marked_execution_tree, position, weight_delta):
     node_and_parents_positions = [position[:len(position)-n] for n in range(len(position))]
+    node_and_parents_positions.append([])
     for node_position in node_and_parents_positions:
         print("Going to update weight of following node: " + str(node_position))
         get_node_from_position(marked_execution_tree,
@@ -443,20 +454,20 @@ def top_down_strategy(marked_execution_tree, position):
                 return tmp_marked_execution_tree, found, tmp_position
     return None, False, []
 
-def find_node_with_frame(marked_execution_tree, position, frame):
+def find_node_with_node_tree(marked_execution_tree, position, node_tree):
     """Search for closest node with frame.
     Returns:
     Found: bool
     Node
     Position: list of int
     """
-    if (marked_execution_tree.frame == frame):
+    if (marked_execution_tree.get_tree() == node_tree):
         return marked_execution_tree, True, position
     else:
         for index, child in enumerate(marked_execution_tree.children):
-            tmp_marked_execution_tree, found, tmp_position = find_node_with_frame(child, position, frame)
+            tmp_marked_execution_tree, found, tmp_position = find_node_with_frame(child, position, node_tree)
             if found:
-                tmp_position.append(index)
+                tmp_position.insert(0, index)
                 return tmp_marked_execution_tree, found, tmp_position
     return None, False, []
 
@@ -468,13 +479,20 @@ def find_node_with_name(marked_execution_tree, position, name):
     Position: list of int
     """
     if (marked_execution_tree.name == name):
+        print("find_node_with_name node found!!!! in position " + str(position))
+        print(marked_execution_tree.name)
         return marked_execution_tree, True, position
     else:
         for index, child in enumerate(marked_execution_tree.children):
+            print("looking in branch " + str(index) + " of the following node")
+            print(marked_execution_tree.get_tree())
             tmp_marked_execution_tree, found, tmp_position = find_node_with_name(child, position, name)
             if found:
-                tmp_position.append(index)
+                tmp_position.insert(0, index)
+                print("found " + name + " in branch, in position " + str(tmp_position))
                 return tmp_marked_execution_tree, found, tmp_position
+    print("find_node_with_name node not found :(:(:(:(:(:(")
+    # print(marked_execution_tree.get_tree())
     return None, False, []
 
 def divide_and_query_Shapiro_strategy(node):
@@ -517,8 +535,14 @@ def get_node_from_position(marked_execution_tree, position):
     return get_node_from_position(marked_execution_tree.children[position[0]], position[1:])
 
 def remove_node_from_tree(marked_execution_tree, position):
+    if len(position) == 0:
+        marked_execution_tree = None
+        return
     if len(position) == 1:
-        return marked_execution_tree.children.pop(position[0])
+        print(marked_execution_tree.name)
+        print("Removing node from children list in position:" + str(position))
+        marked_execution_tree.children.pop(position[0])
+        return
     return remove_node_from_tree(marked_execution_tree.children[position[0]], position[1:])
 
 def get_node_from_frame(marked_execution_tree, frame):
