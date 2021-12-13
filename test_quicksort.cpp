@@ -11,7 +11,7 @@ int main()
   int arr[6] = {0, 0, 0, 0, 0, 0};
   const int n = 6;
   bool correct = true;
-  for (int a = 0; a <= 9; a ++) {
+  for (int a = 0; a <= 10; a ++) {
     for (int b = 0; b <= 9; b ++) {
       for (int c = 0; c <= 9; c ++) {
         for (int d = 0; d <= 9; d ++) {
@@ -24,14 +24,17 @@ int main()
               arr[4] = e;
               arr[5] = f;
               quickSort(arr, 0, n-1, "bug");
-              correct &= !std::is_sorted(arr, arr + 6);
+              correct = correct && std::is_sorted(arr, arr + 6);
+              std::cout << correct << std::endl;
               print_array(arr);
               printf("\n");
+              if (!correct)
+                exit(1);
             }
           }
         }
       }
     }
   }
-  exit(correct);
+  return correct;
 }

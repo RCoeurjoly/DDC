@@ -259,12 +259,15 @@ class StartDeclarativeDebuggingSession(gdb.Command):
                     else:
                         hit_count = 0
         print("Finished building debugging tree. Please choose debugging strategy")
-        options = ["Top-down", "Divide and Query (Hirunkitti)"]
+        options = ["Top-down",
+                   "Divide and Query (Hirunkitti)",
+                   "Heaviest first"]
         terminal_menu = TerminalMenu(options)
         menu_entry_index = terminal_menu.show()
         strategies_dict = {
             "Top-down": top_down_strategy,
-            "Divide and Query (Hirunkitti)": divide_and_query_Hirunkitti_strategy
+            "Divide and Query (Hirunkitti)": divide_and_query_Hirunkitti_strategy,
+            "Heaviest first": heaviest_first_strategy
         }
         print(f"You have selected {options[menu_entry_index]}!")
         marked_execution_tree = Node("frame")
@@ -495,6 +498,17 @@ def divide_and_query_Hirunkitti_strategy(marked_execution_tree, position):
     for index, child in enumerate(marked_execution_tree.children):
         if abs(child.weight - pivot) < distance:
             distance = abs(child.weight - pivot)
+            choosen_node = child
+            position = [index]
+    return choosen_node, True, position
+
+def heaviest_first_strategy(marked_execution_tree, position):
+    # We select the child node whose weight is the heaviest
+    assert(len(marked_execution_tree.children) > 0)
+    heaviest_weight = 0
+    for index, child in enumerate(marked_execution_tree.children):
+        if child.weight > heaviest_weight:
+            heaviest_weight = child.weight
             choosen_node = child
             position = [index]
     return choosen_node, True, position
