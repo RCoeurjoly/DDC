@@ -1,7 +1,7 @@
 /* C implementation QuickSort */
 #include <stdio.h>
 #include <iostream>
-#include <quicksort.cpp>
+#include <quicksort.h>
 
 template<typename T, size_t n>
 void print_array(T const(& arr)[n])
