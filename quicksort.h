@@ -23,7 +23,7 @@ int partition (int arr[6], int low, int high)
   int pivot = arr[high];    // pivot
   int i = (low - 1);  // Index of smaller element
 
-  for (int j = low; j <= high- 1; j++)
+  for (int j = low; j <= high - 1; j++)
     {
       // If current element is smaller than or
       // equal to pivot
