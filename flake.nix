@@ -43,7 +43,7 @@
           name = "quicksort";
           src = self;
           dontStrip = true;
-          buildPhase = "gcc -O0 -g -o test_quicksort ./test_quicksort.cpp -lstdc++";
+          buildPhase = "gcc -O0 -g -o test_quicksort ./quicksort.h ./test_quicksort.cpp -lstdc++";
           installPhase = "mkdir -p $out/bin; install -t $out/bin test_quicksort";
         };
 
