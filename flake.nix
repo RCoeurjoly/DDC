@@ -36,6 +36,17 @@
           installPhase = "mkdir -p $out/bin; install -t $out/bin quicksort";
         };
 
+      packages.x86_64-linux.test =
+        # Notice the reference to nixpkgs here.
+        with import nixpkgs { system = "x86_64-linux"; };
+        stdenv.mkDerivation {
+          name = "quicksort";
+          src = self;
+          dontStrip = true;
+          buildPhase = "gcc -O0 -g -o test_quicksort ./test_quicksort.cpp -lstdc++";
+          installPhase = "mkdir -p $out/bin; install -t $out/bin test_quicksort";
+        };
+
       devShell.x86_64-linux = pkgs.mkShell {
         inputsFrom = builtins.attrValues self.packages.x86_64-linux;
         buildInputs = with pkgs; [ gdb rr poetry python3Packages.pylint python3Packages.autopep8 ];

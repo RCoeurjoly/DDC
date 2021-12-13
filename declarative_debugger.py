@@ -1,3 +1,4 @@
+import copy
 import gdb
 from enum import Enum
 from rich.tree import Tree
@@ -19,7 +20,7 @@ class DebuggingSession:
 class Node:
     def __init__(self, frame, arguments=[], global_variables=[], object_state=None):
         self.frame = frame
-        self.name = frame.name()
+        self.name = frame.name() if isinstance(frame, gdb.Frame) else frame
         self.weight = 0
         self.arguments_on_entry = arguments
         args_tree = Tree("args on entry")
@@ -48,6 +49,26 @@ class Node:
         self.return_value = None
         self.children = []
         self.iscorrect = Answer.IDK
+
+    def deepcopy(self, node):
+        self.frame = None
+        self.name = node.name
+        self.weight = node.weight
+        self.arguments_on_entry = node.arguments_on_entry
+        self.arguments_on_entry_tree = node.arguments_on_entry_tree
+        self.arguments_when_returning = node.arguments_when_returning
+        self.arguments_when_returning_tree = node.arguments_when_returning_tree
+        self.global_variables_on_entry = node.global_variables_on_entry
+        self.global_variables_when_returning = node.global_variables_when_returning
+        self.object_state_on_entry = node.object_state_on_entry
+        self.object_state_when_returning = node.object_state_when_returning
+        self.return_value = node.return_value
+        self.children = []
+        for child in node.children:
+            temp = Node("temp")
+            temp.deepcopy(child)
+            self.children.append(temp)
+        self.iscorrect = node.iscorrect
 
     def get_tree(self, get_children=True, get_weight=True):
         tree = Tree(self.name)
@@ -223,19 +244,20 @@ class StartDeclarativeDebuggingSession(gdb.Command):
 
     def invoke(self, arg, from_tty):
         global my_debugging_session
-        my_finish_breakpoint = [breakpoint for breakpoint in gdb.breakpoints(
-        ) if breakpoint.commands == "finish-debugging-session\n"]
-        if len(my_finish_breakpoint) != 0:
-            print(my_finish_breakpoint)
-            hit_count = my_finish_breakpoint[0].hit_count
-        else:
-            hit_count = 0
-        while (hit_count == 0 and gdb.selected_inferior().pid != 0):
-            gdb.execute("c")
+        if my_debugging_session.finished == False:
+            my_finish_breakpoint = [breakpoint for breakpoint in gdb.breakpoints(
+            ) if breakpoint.commands == "finish-debugging-session\n"]
             if len(my_finish_breakpoint) != 0:
+                print(my_finish_breakpoint)
                 hit_count = my_finish_breakpoint[0].hit_count
             else:
                 hit_count = 0
+            while (hit_count == 0 and gdb.selected_inferior().pid != 0):
+                    gdb.execute("c")
+                    if len(my_finish_breakpoint) != 0:
+                        hit_count = my_finish_breakpoint[0].hit_count
+                    else:
+                        hit_count = 0
         print("Finished building debugging tree. Please choose debugging strategy")
         options = ["Top-down", "Divide and Query (Hirunkitti)"]
         terminal_menu = TerminalMenu(options)
@@ -245,7 +267,10 @@ class StartDeclarativeDebuggingSession(gdb.Command):
             "Divide and Query (Hirunkitti)": divide_and_query_Hirunkitti_strategy
         }
         print(f"You have selected {options[menu_entry_index]}!")
-        marked_execution_tree = my_debugging_session.node
+        marked_execution_tree = Node("frame")
+        marked_execution_tree.deepcopy(my_debugging_session.node)
+        print(id(marked_execution_tree))
+        print(id(my_debugging_session.node))
         answer = ask_about_node(marked_execution_tree)
         if answer in [Answer.YES, Answer.TRUSTED]:
             print("No buggy node found")
