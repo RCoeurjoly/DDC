@@ -47,15 +47,15 @@
           installPhase = "mkdir -p $out/tests; install -t $out/tests test_quicksort";
         };
 
-      packages.x86_64-linux.odd_parity =
+      packages.x86_64-linux.vector_function =
         # Notice the reference to nixpkgs here.
         with import nixpkgs { system = "x86_64-linux"; };
         stdenv.mkDerivation {
           name = "quicksort";
           src = self;
           dontStrip = true;
-          buildPhase = "gcc -O0 -g -o odd_parity ./odd_parity.cpp -lstdc++";
-          installPhase = "mkdir -p $out/tests; install -t $out/tests odd_parity";
+          buildPhase = "gcc -O0 -g -o vector_function ./vector_function.cpp -lstdc++";
+          installPhase = "mkdir -p $out/tests; install -t $out/tests vector_function";
         };
 
       devShell.x86_64-linux = pkgs.mkShell {
