@@ -27,10 +27,12 @@ int partition (std::vector<int> &my_vector, int low, int high)
       if (my_vector[j] <= pivot)
         {
           i++;    // increment index of smaller element
-          swap(&my_vector[i], &my_vector[j]);
+          if (i != j)
+            swap(&my_vector[i], &my_vector[j]);
         }
     }
-  swap(&my_vector[i + 1], &my_vector[high]);
+  if ((i + 1) != high)
+    swap(&my_vector[i + 1], &my_vector[high]);
   return (i + 1);
 }
 
