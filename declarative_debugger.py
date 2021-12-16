@@ -149,6 +149,7 @@ class CommandFinishSession(gdb.Command):
     def invoke(self, arg, from_tty):
         global my_debugging_session
         my_debugging_session.finish()
+        return
 
 CommandFinishSession()
 
@@ -264,6 +265,7 @@ class CommandAddNodeToSession(gdb.Command):
         my_br.commands = (
                           "save-returning-node\n")
         my_finish_breakpoint.delete()
+        return
 
 CommandAddNodeToSession()
 
@@ -289,11 +291,11 @@ class CommandAddNodeToCorrectList(gdb.Command):
                                 if breakpoint.number == my_finish_br.number][0]
         my_br = gdb.Breakpoint(my_finish_breakpoint.location, temporary=False)
         my_br.commands = ("save-returning-correct-node\n")
-        print("Saving " + my_node.name + " by br in " + my_br)
+        print("Saving " + my_node.name + " by br n# " + str(my_br.number))
         # print(my_br.location)
         # print(my_finish_breakpoint.location)
         my_finish_breakpoint.delete()
-
+        return
 
 CommandAddNodeToCorrectList()
 
@@ -306,6 +308,7 @@ class CommandSuspectFunction(gdb.Command):
 
     def invoke(self, arg, from_tty):
         SetBreak(arg, False)
+        return
 
 CommandSuspectFunction()
 
@@ -318,6 +321,7 @@ class CommandSaveCorrectFunction(gdb.Command):
 
     def invoke(self, arg, from_tty):
         SetBreak(arg, False, True)
+        return
 
 CommandSaveCorrectFunction()
 
@@ -330,6 +334,7 @@ class CommandFinalBreakpoint(gdb.Command):
 
     def invoke(self, arg, from_tty):
         SetBreak(arg, True)
+        return
 
 CommandFinalBreakpoint()
 
@@ -387,6 +392,7 @@ class StartDeclarativeDebuggingSession(gdb.Command):
             return
         print("Buggy node found")
         print(buggy_node.get_tree())
+        return
 
 StartDeclarativeDebuggingSession()
 
@@ -411,6 +417,7 @@ class TilTheEnd(gdb.Command):
                 hit_count = my_finish_breakpoint[0].hit_count
             else:
                 hit_count = 0
+        return
 
 TilTheEnd()
 
@@ -423,6 +430,7 @@ class PrintNodes(gdb.Command):
     def invoke(self, arg, from_tty):
         global my_debugging_session
         print(my_debugging_session.node.get_tree())
+        return
 
 PrintNodes()
 
