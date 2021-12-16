@@ -260,7 +260,7 @@ class CommandAddNodeToSession(gdb.Command):
         my_finish_breakpoint = [breakpoint
                                 for breakpoint in gdb.breakpoints()
                                 if breakpoint.number == my_finish_br.number][0]
-        my_br = gdb.Breakpoint(my_finish_breakpoint.location, temporary=False)
+        my_br = gdb.Breakpoint(my_finish_breakpoint.location, temporary=True)
         # my_br.silent = True
         my_br.commands = (
                           "save-returning-node\n")
@@ -289,7 +289,7 @@ class CommandAddNodeToCorrectList(gdb.Command):
         my_finish_breakpoint = [breakpoint
                                 for breakpoint in gdb.breakpoints()
                                 if breakpoint.number == my_finish_br.number][0]
-        my_br = gdb.Breakpoint(my_finish_breakpoint.location, temporary=False)
+        my_br = gdb.Breakpoint(my_finish_breakpoint.location, temporary=True)
         my_br.commands = ("save-returning-correct-node\n")
         print("Saving " + my_node.name + " by br n# " + str(my_br.number))
         # print(my_br.location)
@@ -449,6 +449,9 @@ class MyFinishBreakpoint (gdb.FinishBreakpoint):
                                self.position).return_value = self.return_value
         return True
 
+    def out_of_scope ():
+        print ("abnormal finish")
+
 class MyReferenceFinishBreakpoint (gdb.FinishBreakpoint):
     def __init__(self, position):
         super(MyReferenceFinishBreakpoint, self).__init__()
@@ -462,6 +465,9 @@ class MyReferenceFinishBreakpoint (gdb.FinishBreakpoint):
         global pending_correct_nodes
         pending_correct_nodes[position].return_value = self.return_value
         return True
+
+    def out_of_scope ():
+        print ("abnormal finish")
 
 my_debugging_session = DebuggingSession()
 correct_nodes: Set[Node] = set()
