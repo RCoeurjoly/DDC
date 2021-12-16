@@ -205,15 +205,17 @@ class SaveReturningCorrectNode(gdb.Command):
         assert(len(pending_correct_nodes) > 0)
         arguments = [symbol for symbol in gdb.newest_frame().block()
                      if symbol.is_argument]
-        my_node = pending_correct_nodes[-1]
-        assert(my_node.frame == gdb.newest_frame())
-        assert(my_node.frame.is_valid)
         assert(len(arguments) > 0)
-        assert(pending_correct_nodes[-1].finished == False)
-        for pending_correct_node in pending_correct_nodes:
-            assert(pending_correct_node.frame.is_valid())
+        for index, pending_correct_node in enumerate(pending_correct_nodes):
+            print("Checking frame " + str(index))
+            if(pending_correct_node.frame.is_valid() != True):
+                print(pending_correct_node.get_tree())
+            else:
+                my_node = pending_correct_node
+                # assert(my_node.frame == gdb.newest_frame())
+            # assert(pending_correct_node.frame.is_valid())
             assert(pending_correct_node.finished == False)
-        my_node = pending_correct_nodes[-1]
+        # my_node = pending_correct_nodes[-1]
         # for pending_correct_node in pending_correct_nodes:
         #     if pending_correct_node.frame == gdb.newest_frame():
         #         my_node = pending_correct_node
@@ -292,8 +294,6 @@ class CommandAddNodeToCorrectList(gdb.Command):
         my_br = gdb.Breakpoint(my_finish_breakpoint.location, temporary=True)
         my_br.commands = ("save-returning-correct-node\n")
         print("Saving " + my_node.name + " by br n# " + str(my_br.number))
-        # print(my_br.location)
-        # print(my_finish_breakpoint.location)
         my_finish_breakpoint.delete()
         return
 
