@@ -204,6 +204,9 @@ class SaveReturningCorrectNode(gdb.Command):
         assert(len(pending_correct_nodes) > 0)
         arguments = [symbol for symbol in gdb.newest_frame().block()
                      if symbol.is_argument]
+        my_node = pending_correct_nodes[-1]
+        assert(my_node.frame == gdb.newest_frame())
+        assert(my_node.frame.is_valid)
         assert(len(arguments) > 0)
         assert(pending_correct_nodes[-1].finished == False)
         for pending_correct_node in pending_correct_nodes:
@@ -286,7 +289,11 @@ class CommandAddNodeToCorrectList(gdb.Command):
                                 if breakpoint.number == my_finish_br.number][0]
         my_br = gdb.Breakpoint(my_finish_breakpoint.location, temporary=False)
         my_br.commands = ("save-returning-correct-node\n")
+        print("Saving " + my_node.name + " by br in " + my_br)
+        # print(my_br.location)
+        # print(my_finish_breakpoint.location)
         my_finish_breakpoint.delete()
+
 
 CommandAddNodeToCorrectList()
 
