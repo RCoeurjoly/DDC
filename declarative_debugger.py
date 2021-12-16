@@ -6,19 +6,23 @@ from simple_term_menu import TerminalMenu # type: ignore
 from typing import Set, List, Callable, Optional, Tuple
 
 class DebuggingSession:
-    def __init__(self):
+    def __init__(self) -> None:
         self.node = None
         self.started = False
         self.finished = False
 
-    def start(self):
+    def start(self) -> None:
         self.started = True
 
-    def finish(self):
+    def finish(self) -> None:
         self.finished = True
 
 class Node:
-    def __init__(self, frame, arguments=[], global_variables=[], object_state=None):
+    def __init__(self,
+                 frame: gdb.Frame,
+                 arguments: List[gdb.Symbol] = [],
+                 global_variables: List[gdb.Symbol] = [],
+                 object_state: Optional[gdb.Symbol] = None) -> None:
         self.frame = frame
         self.name = frame.name() if isinstance(frame, gdb.Frame) else frame
         self.weight = 0
@@ -38,14 +42,14 @@ class Node:
                     deref_refs=True))
             args_tree.add(arg_tree_name)
         self.arguments_on_entry_tree = args_tree
-        self.arguments_when_returning = []
+        self.arguments_when_returning: List[gdb.Symbol] = []
         self.arguments_when_returning_tree = ""
         self.global_variables_on_entry = global_variables
-        self.global_variables_when_returning = []
+        self.global_variables_when_returning: List[gdb.Symbol] = []
         self.object_state_on_entry = object_state
         self.object_state_when_returning = None
         self.return_value = None
-        self.children = []
+        self.children: List[Node] = []
         self.iscorrect = Answer.IDK
 
     def deepcopy(self, node):
