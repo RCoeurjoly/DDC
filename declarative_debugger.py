@@ -182,7 +182,7 @@ class SaveReturningNode(gdb.Command):
         global my_debugging_session
         arguments = [symbol for symbol in gdb.newest_frame().block()
                      if symbol.is_argument]
-        my_node = get_node_from_frame(
+        my_node = get_unfinished_node_from_frame(
             my_debugging_session.node, gdb.newest_frame())
         assert(my_node.frame == gdb.newest_frame())
         my_node.finish(arguments=arguments)
@@ -689,12 +689,14 @@ def remove_node_from_tree(marked_execution_tree: Node,
     else:
         return remove_node_from_tree(marked_execution_tree.children[position[0]], position[1:])
 
-def get_node_from_frame(marked_execution_tree: Node,
+def get_unfinished_node_from_frame(marked_execution_tree: Node,
                         frame: gdb.Frame) -> Node:
+    # If the frame coincides, we also check that is an unfinished node
+    print("Looking for " + frame.name())
     if marked_execution_tree.frame == frame and marked_execution_tree.arguments_when_returning == []:
         return marked_execution_tree
     assert(len(marked_execution_tree.children) > 0)
-    return get_node_from_frame(marked_execution_tree.children[-1], frame)
+    return get_unfinished_node_from_frame(marked_execution_tree.children[-1], frame)
 
 def print_tree(node: Node) -> None:
     print(node.get_tree())
