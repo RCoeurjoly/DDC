@@ -1,8 +1,8 @@
-import gdb
+import gdb # type: ignore
 from enum import Enum
 from rich.tree import Tree
 from rich import print
-from simple_term_menu import TerminalMenu
+from simple_term_menu import TerminalMenu # type: ignore
 from typing import Set, List, Callable, Optional, Tuple
 
 class DebuggingSession:
