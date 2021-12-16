@@ -1,9 +1,9 @@
-import copy
 import gdb
 from enum import Enum
 from rich.tree import Tree
 from rich import print
 from simple_term_menu import TerminalMenu
+from typing import Set, List, Callable, Optional, Tuple
 
 class DebuggingSession:
     def __init__(self):
@@ -26,9 +26,7 @@ class Node:
         args_tree = Tree("args on entry")
         for arg in self.arguments_on_entry:
             arg_tree_name = arg.print_name + " = "
-            if arg.print_name == "arr":
-                arg_tree_name += str(gdb.parse_and_eval("*arr@6"))
-            elif arg.value(self.frame).type.code == gdb.TYPE_CODE_PTR:
+            if arg.value(self.frame).type.code == gdb.TYPE_CODE_PTR:
                 arg_tree_name += str(arg.value(self.frame).dereference())
             else:
                 arg_tree_name += str(arg.value(self.frame).format_string(
@@ -70,11 +68,12 @@ class Node:
             self.children.append(temp)
         self.iscorrect = node.iscorrect
 
-    def get_tree(self, get_children=True, get_weight=True):
+    def get_tree(self, get_children=True, get_weight=True, get_correctness=True):
         tree = Tree(self.name)
-        correct_tree = Tree("correctness")
-        correct_tree.add(str(self.iscorrect))
-        tree.add(correct_tree)
+        if get_correctness:
+            correct_tree = Tree("correctness")
+            correct_tree.add(str(self.iscorrect))
+            tree.add(correct_tree)
         if get_weight:
             weight_tree = Tree("weight")
             weight_tree.add(str(self.weight))
@@ -96,9 +95,7 @@ class Node:
         args_tree = Tree("args when returning")
         for arg in self.arguments_when_returning:
             arg_tree_name = arg.print_name + " = "
-            if arg.print_name == "arr":
-                arg_tree_name += str(gdb.parse_and_eval("*arr@6"))
-            elif arg.value(self.frame).type.code == gdb.TYPE_CODE_PTR:
+            if arg.value(self.frame).type.code == gdb.TYPE_CODE_PTR:
                 arg_tree_name += str(arg.value(self.frame).dereference())
             else:
                 arg_tree_name += str(arg.value(self.frame).format_string(
@@ -147,15 +144,20 @@ class CommandFinishSession(gdb.Command):
 CommandFinishSession()
 
 class SetBreak(gdb.Breakpoint):
-    def __init__(self, function, final=False):
+    def __init__(self, function, final=False, reference_node=False):
         gdb.Breakpoint.__init__(self, function)
         self.final = final
         if final:
-            self.commands = "finish-debugging-session"
+            self.commands = "finish-debugging-session\n"
+            self.silent = False
+        elif reference_node == False:
+            self.commands = ("silent\n"
+                             "add-node-to-session\n")
+            self.silent = True
         else:
-            self.commands = ("add-node-to-session\n")
-            # "c")
-        self.silent = False
+            self.commands = ("silent\n"
+                             "add-node-to-correct-set\n")
+            self.silent = True
 
     def stop(self):
         return True  # stop the execution at this point
@@ -168,7 +170,7 @@ class SaveReturningNode(gdb.Command):
             "save-returning-node", gdb.COMMAND_USER)
 
     def invoke(self, arg, from_tty):
-        gdb.execute("reverse-step")
+        gdb.execute("reverse-step") # To execute this command, rr is needed
         global my_debugging_session
         arguments = [symbol for symbol in gdb.newest_frame().block()
                      if symbol.is_argument]
@@ -179,6 +181,30 @@ class SaveReturningNode(gdb.Command):
         return
 
 SaveReturningNode()
+
+class SaveReturningCorrectNode(gdb.Command):
+    """Save the info at the moment a node is returning in correct nodes list"""
+
+    def __init__(self):
+        super(SaveReturningCorrectNode, self).__init__(
+            "save-returning-correct-node", gdb.COMMAND_USER)
+
+    def invoke(self, arg, from_tty):
+        gdb.execute("reverse-step") # To execute this command, rr is needed
+        global pending_correct_nodes
+        global correct_nodes
+        assert(len(pending_correct_nodes) > 0)
+        arguments = [symbol for symbol in gdb.newest_frame().block()
+                     if symbol.is_argument]
+        my_node = pending_correct_nodes[-1]
+        my_node.finish(arguments=arguments)
+        correct_nodes.add(my_node.get_tree(get_children=False, get_weight=False, get_correctness=False))
+        assert(len(correct_nodes) > 0)
+        pending_correct_nodes.pop()
+        gdb.execute("n")
+        return
+
+SaveReturningCorrectNode()
 
 class CommandAddNodeToSession(gdb.Command):
     """Set breakpoint for ending debugging session"""
@@ -205,11 +231,38 @@ class CommandAddNodeToSession(gdb.Command):
                                 for breakpoint in gdb.breakpoints()
                                 if breakpoint.number == my_finish_br.number][0]
         my_br = gdb.Breakpoint(my_finish_breakpoint.location, temporary=False)
-        my_br.commands = ("save-returning-node\n")
-        #    "c\n")
+        my_br.silent = True
+        my_br.commands = ("silent\n"
+                          "save-returning-node\n")
         my_finish_breakpoint.delete()
 
 CommandAddNodeToSession()
+
+class CommandAddNodeToCorrectList(gdb.Command):
+    """Set breakpoint for ending debugging session"""
+
+    def __init__(self):
+        super(CommandAddNodeToCorrectList, self).__init__(
+            "add-node-to-correct-set", gdb.COMMAND_USER)
+
+    def invoke(self, arg, from_tty):
+        global pending_correct_nodes
+        # Variable: Symbol.is_argument
+        arguments = [symbol for symbol in gdb.selected_frame().block()
+                     if symbol.is_argument]
+        my_node = Node(gdb.selected_frame(), arguments)
+        pending_correct_nodes.append(my_node)
+        position = len(pending_correct_nodes) - 1
+        my_finish_br = MyReferenceFinishBreakpoint(position)
+        my_finish_breakpoint = [breakpoint
+                                for breakpoint in gdb.breakpoints()
+                                if breakpoint.number == my_finish_br.number][0]
+        my_br = gdb.Breakpoint(my_finish_breakpoint.location, temporary=False)
+        my_br.commands = ("save-returning-correct-node\n")
+        #    "c\n")
+        my_finish_breakpoint.delete()
+
+CommandAddNodeToCorrectList()
 
 class CommandSuspectFunction(gdb.Command):
     """Set breakpoint for ending debugging session"""
@@ -222,6 +275,18 @@ class CommandSuspectFunction(gdb.Command):
         SetBreak(arg, False)
 
 CommandSuspectFunction()
+
+class CommandSaveCorrectFunction(gdb.Command):
+    """Set breakpoint for ending debugging session"""
+
+    def __init__(self):
+        super(CommandSaveCorrectFunction, self).__init__(
+            "save-correct-function", gdb.COMMAND_USER)
+
+    def invoke(self, arg, from_tty):
+        SetBreak(arg, False, True)
+
+CommandSaveCorrectFunction()
 
 class CommandFinalBreakpoint(gdb.Command):
     """Set breakpoint for ending debugging session"""
@@ -272,8 +337,6 @@ class StartDeclarativeDebuggingSession(gdb.Command):
         print(f"You have selected {options[menu_entry_index]}!")
         marked_execution_tree = Node("frame")
         marked_execution_tree.deepcopy(my_debugging_session.node)
-        print(id(marked_execution_tree))
-        print(id(my_debugging_session.node))
         answer = ask_about_node(marked_execution_tree)
         if answer in [Answer.YES, Answer.TRUSTED]:
             print("No buggy node found")
@@ -292,6 +355,30 @@ class StartDeclarativeDebuggingSession(gdb.Command):
 
 StartDeclarativeDebuggingSession()
 
+class TilTheEnd(gdb.Command):
+    """Set breakpoint on setField from Quickfix. It takes the tag number as argument"""
+
+    def __init__(self):
+        super(TilTheEnd, self).__init__(
+            "till-the-end", gdb.COMMAND_USER)
+
+    def invoke(self, arg, from_tty):
+        my_finish_breakpoint = [breakpoint for breakpoint in gdb.breakpoints(
+        ) if breakpoint.commands == "finish-debugging-session\n"]
+        if len(my_finish_breakpoint) != 0:
+            print(my_finish_breakpoint)
+            hit_count = my_finish_breakpoint[0].hit_count
+        else:
+            hit_count = 0
+        while (hit_count == 0 and gdb.selected_inferior().pid != 0):
+            gdb.execute("c")
+            if len(my_finish_breakpoint) != 0:
+                hit_count = my_finish_breakpoint[0].hit_count
+            else:
+                hit_count = 0
+
+TilTheEnd()
+
 class PrintNodes(gdb.Command):
     """Print nodes of declarative debugging session"""
 
@@ -308,11 +395,10 @@ class MyFinishBreakpoint (gdb.FinishBreakpoint):
     def __init__(self, position):
         super(MyFinishBreakpoint, self).__init__()
         self.position = position
-        self.commands = ("reverse-step\n"
+        self.commands = ("silent\n"
+                         "reverse-step\n"
                          "save-returning-node\n"
                          "next")
-        # "c")
-        #self.associated_frame = frame
 
     def stop(self):
         global my_debugging_session
@@ -320,11 +406,28 @@ class MyFinishBreakpoint (gdb.FinishBreakpoint):
                                self.position).return_value = self.return_value
         return True
 
+class MyReferenceFinishBreakpoint (gdb.FinishBreakpoint):
+    def __init__(self, position):
+        super(MyReferenceFinishBreakpoint, self).__init__()
+        self.position = position
+        self.commands = ("silent\n"
+                         "reverse-step\n"
+                         "save-returning-correct-node\n"
+                         "next")
+
+    def stop(self):
+        global pending_correct_nodes
+        pending_correct_nodes[position].return_value = self.return_value
+        return True
+
 my_debugging_session = DebuggingSession()
+correct_nodes: Set[Node] = set()
+pending_correct_nodes: List[Node] = []
 
 # Functions
 
-def general_debugging_algorithm(marked_execution_tree, strategy):
+def general_debugging_algorithm(marked_execution_tree: Optional[Node],
+                                strategy: Callable[[Node, List[int]], Tuple[Node, bool, List[int]]]) -> Optional[Node]:
     while (marked_execution_tree is not None
            and not (marked_execution_tree.iscorrect == Answer.NO
                     and len(marked_execution_tree.children) == 0)):
@@ -335,7 +438,7 @@ def general_debugging_algorithm(marked_execution_tree, strategy):
         answer = ask_about_node(selected_node)
         selected_node.iscorrect = answer
         name = selected_node.name
-        node_tree = selected_node.get_tree(get_weight=False)
+        node_tree = selected_node.get_tree(get_children=False, get_weight=False, get_correctness=False)
         if (answer == Answer.NO):
             marked_execution_tree = selected_node
         elif answer in [Answer.YES, Answer.IDK, Answer.TRUSTED]:
@@ -371,17 +474,23 @@ def general_debugging_algorithm(marked_execution_tree, strategy):
                     break
     return marked_execution_tree
 
-def select_node(marked_execution_tree, strategy):
+def select_node(marked_execution_tree: Node,
+                strategy: Callable[[Node, List[int]],
+                                   Tuple[Node, bool, List[int]]]) -> Tuple[Node, bool, List[int]]:
     return strategy(marked_execution_tree, [])
 
-def update_nodes_weight(marked_execution_tree, position, weight_delta):
+def update_nodes_weight(marked_execution_tree: Node,
+                        position: List[int],
+                        weight_delta: int) -> None:
     node_and_parents_positions = [position[:len(position)-n] for n in range(len(position))]
     node_and_parents_positions.append([])
     for node_position in node_and_parents_positions:
         get_node_from_position(marked_execution_tree,
                                node_position).weight += weight_delta
 
-def add_node_to_tree(marked_execution_tree, node, position):
+def add_node_to_tree(marked_execution_tree: Node,
+                     node: Node,
+                     position: List[int]) -> List[int]:
     if (len(marked_execution_tree.children) == 0
         or not marked_execution_tree.children[-1].frame.is_valid() # Or last child has finished
         or marked_execution_tree.children[-1].frame not in get_parent_frames(node)):
@@ -392,14 +501,13 @@ def add_node_to_tree(marked_execution_tree, node, position):
         position.append(len(marked_execution_tree.children)-1)
         return add_node_to_tree(marked_execution_tree.children[-1], node, position)
 
-def get_parent_frames(node):
+def get_parent_frames(node: Node) -> List[gdb.Frame]:
     parents = []
     aux_frame = node.frame.older()
     while aux_frame is not None:
         parents.append(aux_frame)
         aux_frame = aux_frame.older()
     return parents
-
 
 class Answer(Enum):
     YES = 1
@@ -421,21 +529,8 @@ class Answer(Enum):
         if self.value == 4:
             return "trusted"
 
-def discard_trusted_nodes(trusted_node, marked_execution_tree):
-    gen = (node for node in marked_execution_tree if node.iscorrect == Answer.IDK)
-    for node in gen:
-        if node.name == trusted_node.name:
-            node.iscorrect = Answer.TRUSTED
-        discard_trusted_nodes(trusted_node, node.children)
-
-def discard_correct_nodes(correct_node, nodes):
-    gen = (node for node in nodes if node.iscorrect == Answer.IDK)
-    for node in gen:
-        if node.frame == correct_node.frame:
-            node.iscorrect = Answer.YES
-        discard_correct_nodes(correct_node, node.children)
-
-def top_down_strategy(marked_execution_tree, position):
+def top_down_strategy(marked_execution_tree: Node,
+                      position: List[int]) -> Tuple[Optional[Node], bool, List[int]]:
     """Search for closest undefined node.
     Returns:
     Found: bool
@@ -452,14 +547,17 @@ def top_down_strategy(marked_execution_tree, position):
                 return tmp_marked_execution_tree, found, tmp_position
     return None, False, []
 
-def find_node_with_node_tree(marked_execution_tree, position, node_tree):
+def find_node_with_node_tree(marked_execution_tree: Node,
+                             position: List[int], node_tree) -> Tuple[Optional[Node], bool, List[int]]:
     """Search for closest node with frame.
     Returns:
     Found: bool
     Node
     Position: list of int
     """
-    if (marked_execution_tree.get_tree(get_weight=False) == node_tree):
+    if (marked_execution_tree.get_tree(get_children=False,
+                                       get_weight=False,
+                                       get_correctness=False) == node_tree):
         return marked_execution_tree, True, position
     else:
         for index, child in enumerate(marked_execution_tree.children):
@@ -469,7 +567,9 @@ def find_node_with_node_tree(marked_execution_tree, position, node_tree):
                 return tmp_marked_execution_tree, found, tmp_position
     return None, False, []
 
-def find_node_with_name(marked_execution_tree, position, name):
+def find_node_with_name(marked_execution_tree: Node,
+                        position: List[int],
+                        name: str) -> Tuple[Optional[Node], bool, List[int]]:
     """Search for closest node with name.
     Returns:
     Found: bool
@@ -486,7 +586,8 @@ def find_node_with_name(marked_execution_tree, position, name):
                 return tmp_marked_execution_tree, found, tmp_position
     return None, False, []
 
-def divide_and_query_Hirunkitti_strategy(marked_execution_tree, position):
+def divide_and_query_Hirunkitti_strategy(marked_execution_tree: Node,
+                                         position: List[int]) -> Tuple[Node, bool, List[int]]:
     # We select the child node whose weight is the closest to w(n)/2
     # w(child node) being >= w(n)/2
     # or w(child node) being <= w(n)/2
@@ -502,7 +603,8 @@ def divide_and_query_Hirunkitti_strategy(marked_execution_tree, position):
             position = [index]
     return choosen_node, True, position
 
-def heaviest_first_strategy(marked_execution_tree, position):
+def heaviest_first_strategy(marked_execution_tree: Node,
+                            position: List[int]) -> Tuple[Node, bool, List[int]]:
     # We select the child node whose weight is the heaviest
     assert(len(marked_execution_tree.children) > 0)
     heaviest_weight = 0
@@ -513,7 +615,7 @@ def heaviest_first_strategy(marked_execution_tree, position):
             position = [index]
     return choosen_node, True, position
 
-def ask_about_node(node):
+def ask_about_node(node: Node) -> Answer:
     print("Is the following node correct?")
     print(node.get_tree(get_children=False))
     options = ["Yes", "No", "I don't know", "Trusted"]
@@ -527,12 +629,14 @@ def ask_about_node(node):
     }
     return answers_dict[options[menu_entry_index]]
 
-def get_node_from_position(marked_execution_tree, position):
+def get_node_from_position(marked_execution_tree: Node,
+                           position: List[int]) -> Node:
     if len(position) == 0:
         return marked_execution_tree
     return get_node_from_position(marked_execution_tree.children[position[0]], position[1:])
 
-def remove_node_from_tree(marked_execution_tree, position):
+def remove_node_from_tree(marked_execution_tree: Node,
+                          position: List[int]) -> bool:
     """Returns true if marked_execution_tree should be deleted"""
     if len(position) == 0:
         return True
@@ -542,10 +646,24 @@ def remove_node_from_tree(marked_execution_tree, position):
     else:
         return remove_node_from_tree(marked_execution_tree.children[position[0]], position[1:])
 
-def get_node_from_frame(marked_execution_tree, frame):
+def get_node_from_frame(marked_execution_tree: Node,
+                        frame: gdb.Frame) -> Node:
     if marked_execution_tree.frame == frame and marked_execution_tree.arguments_when_returning == []:
         return marked_execution_tree
     return get_node_from_frame(marked_execution_tree.children[-1], frame)
 
-def print_tree(node):
+def print_tree(node: Node) -> None:
     print(node.get_tree())
+
+def cut_chain(chain, i, j):
+    assert(len(chain) >= 2)
+    n = len(chain)
+    if i > 2:
+        ini_subchain = chain[:i-2]
+    else:
+        ini_subchain = []
+    if n - j > 1:
+        end_subchain = chain[j:]
+    else:
+        end_subchain = []
+    return ini_subchain, end_subchain
