@@ -199,6 +199,10 @@ class SaveReturningCorrectNode(gdb.Command):
             "save-returning-correct-node", gdb.COMMAND_USER)
 
     def invoke(self, arg, from_tty):
+        #arguments_to_command = gdb.string_to_argv(arg)
+        #assert(len(arguments_to_command) == 1)
+
+        #breakpoint_number_to_delete = int(arguments_to_command[0])
         gdb.execute("reverse-step") # To execute this command, rr is needed
         global pending_correct_nodes
         global correct_nodes
@@ -233,6 +237,7 @@ class SaveReturningCorrectNode(gdb.Command):
         correct_nodes.add(my_node.get_tree(get_children=False, get_weight=False, get_correctness=False))
         assert(len(correct_nodes) > 0)
         pending_correct_nodes.pop()
+        #[breakpoint for breakpoint in gdb.breakpoints()][breakpoint_number_to_delete].delete()
         gdb.execute("n")
         return
 
@@ -262,7 +267,7 @@ class CommandAddNodeToSession(gdb.Command):
         my_finish_breakpoint = [breakpoint
                                 for breakpoint in gdb.breakpoints()
                                 if breakpoint.number == my_finish_br.number][0]
-        my_br = gdb.Breakpoint(my_finish_breakpoint.location, temporary=True)
+        my_br = gdb.Breakpoint(my_finish_breakpoint.location, temporary=False)
         # my_br.silent = True
         my_br.commands = (
                           "save-returning-node\n")
@@ -291,8 +296,8 @@ class CommandAddNodeToCorrectList(gdb.Command):
         my_finish_breakpoint = [breakpoint
                                 for breakpoint in gdb.breakpoints()
                                 if breakpoint.number == my_finish_br.number][0]
-        my_br = gdb.Breakpoint(my_finish_breakpoint.location, temporary=True)
-        my_br.commands = ("save-returning-correct-node\n")
+        my_br = gdb.Breakpoint(my_finish_breakpoint.location, temporary=False)
+        my_br.commands = ("save-returning-correct-node " + str(my_br.number) + "\n")
         print("Saving " + my_node.name + " by br n# " + str(my_br.number))
         my_finish_breakpoint.delete()
         return
