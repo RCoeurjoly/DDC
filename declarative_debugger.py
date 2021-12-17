@@ -178,12 +178,28 @@ class SaveReturningNode(gdb.Command):
             "save-returning-node", gdb.COMMAND_USER)
 
     def invoke(self, arg, from_tty):
+        arguments_to_command = gdb.string_to_argv(arg)
+        assert(len(arguments_to_command) == 1)
+        triggered_br_number = int(arguments_to_command[0])
         gdb.execute("reverse-step") # To execute this command, rr is needed
         global my_debugging_session
         arguments = [symbol for symbol in gdb.newest_frame().block()
                      if symbol.is_argument]
         my_node = get_unfinished_node_from_frame(
             my_debugging_session.node, gdb.newest_frame())
+        if len(arguments) == 0:
+            gdb.execute("n")
+            return
+        location_good_br = [breakpoint.location for breakpoint in gdb.breakpoints()
+                            if breakpoint.number == my_node.saving_br_number][0]
+        possible_saving_br_numbers = [breakpoint.number for breakpoint in gdb.breakpoints()
+                                      if breakpoint.location == location_good_br]
+        if triggered_br_number not in possible_saving_br_numbers:
+            print(str(triggered_br_number) + " is not in " + str(possible_saving_br_numbers))
+            gdb.execute("n")
+            # assert(False)
+            return
+        assert(len(arguments) > 0)
         assert(my_node.frame == gdb.newest_frame())
         my_node.finish(arguments=arguments)
         gdb.execute("n")
@@ -199,16 +215,18 @@ class SaveReturningCorrectNode(gdb.Command):
             "save-returning-correct-node", gdb.COMMAND_USER)
 
     def invoke(self, arg, from_tty):
-        #arguments_to_command = gdb.string_to_argv(arg)
-        #assert(len(arguments_to_command) == 1)
-
-        #breakpoint_number_to_delete = int(arguments_to_command[0])
+        arguments_to_command = gdb.string_to_argv(arg)
+        assert(len(arguments_to_command) == 1)
+        triggered_br_number = int(arguments_to_command[0])
         gdb.execute("reverse-step") # To execute this command, rr is needed
         global pending_correct_nodes
         global correct_nodes
         assert(len(pending_correct_nodes) > 0)
         arguments = [symbol for symbol in gdb.newest_frame().block()
                      if symbol.is_argument]
+        if len(arguments) == 0:
+            gdb.execute("n")
+            return
         assert(len(arguments) > 0)
         for index, pending_correct_node in enumerate(pending_correct_nodes):
             print("Checking frame " + str(index))
@@ -219,6 +237,15 @@ class SaveReturningCorrectNode(gdb.Command):
                 # assert(my_node.frame == gdb.newest_frame())
             # assert(pending_correct_node.frame.is_valid())
             assert(pending_correct_node.finished == False)
+        location_good_br = [breakpoint.location for breakpoint in gdb.breakpoints()
+                            if breakpoint.number == my_node.saving_br_number][0]
+        possible_saving_br_numbers = [breakpoint.number for breakpoint in gdb.breakpoints()
+                                      if breakpoint.location == location_good_br]
+        if triggered_br_number not in possible_saving_br_numbers:
+            print(str(triggered_br_number) + " is not in " + str(possible_saving_br_numbers))
+            gdb.execute("n")
+            # assert(False)
+            return
         # my_node = pending_correct_nodes[-1]
         # for pending_correct_node in pending_correct_nodes:
         #     if pending_correct_node.frame == gdb.newest_frame():
@@ -264,14 +291,17 @@ class CommandAddNodeToSession(gdb.Command):
             position = add_node_to_tree(my_debugging_session.node, my_node, [])
         update_nodes_weight(my_debugging_session.node, position, 1)
         my_finish_br = MyFinishBreakpoint(position)
+        print([breakpoint for breakpoint in gdb.breakpoints() if breakpoint.number == my_finish_br.number])
         my_finish_breakpoint = [breakpoint
                                 for breakpoint in gdb.breakpoints()
                                 if breakpoint.number == my_finish_br.number][0]
         my_br = gdb.Breakpoint(my_finish_breakpoint.location, temporary=False)
+        if (my_node.name == "partition"):
+            print("Creating new saving breakpoint n# " + str(my_br.number))
+        my_node.saving_br_number = my_br.number
         # my_br.silent = True
-        my_br.commands = (
-                          "save-returning-node\n")
         my_finish_breakpoint.delete()
+        my_br.commands = ("save-returning-node " + str(my_br.number) + "\n")
         return
 
 CommandAddNodeToSession()
@@ -298,6 +328,7 @@ class CommandAddNodeToCorrectList(gdb.Command):
                                 if breakpoint.number == my_finish_br.number][0]
         my_br = gdb.Breakpoint(my_finish_breakpoint.location, temporary=False)
         my_br.commands = ("save-returning-correct-node " + str(my_br.number) + "\n")
+        my_node.saving_br_number = my_br.number
         print("Saving " + my_node.name + " by br n# " + str(my_br.number))
         my_finish_breakpoint.delete()
         return
@@ -467,6 +498,7 @@ class MyReferenceFinishBreakpoint (gdb.FinishBreakpoint):
                          "next")
 
     def stop(self):
+        print("Arrived at " + str(self.number))
         global pending_correct_nodes
         pending_correct_nodes[position].return_value = self.return_value
         return True
@@ -704,7 +736,8 @@ def get_unfinished_node_from_frame(marked_execution_tree: Node,
                         frame: gdb.Frame) -> Node:
     # If the frame coincides, we also check that is an unfinished node
     print("Looking for " + frame.name())
-    if marked_execution_tree.frame == frame and marked_execution_tree.arguments_when_returning == []:
+    if marked_execution_tree.frame == frame and marked_execution_tree.finished == False:
+        print("Found " + frame.name())
         return marked_execution_tree
     assert(len(marked_execution_tree.children) > 0)
     return get_unfinished_node_from_frame(marked_execution_tree.children[-1], frame)

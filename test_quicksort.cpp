@@ -11,13 +11,22 @@ int main()
   std::vector<int> my_vector{ 0, 0, 0, 0, 0, 0 };
   const int n = 6;
   bool correct = true;
-  for (int i = 0; i <= 0; i++) {
-    my_vector[0] = rand() % 9 + 1;
-    my_vector[1] = rand() % 9 + 1;
-    my_vector[2] = rand() % 9 + 1;
-    my_vector[3] = rand() % 9 + 1;
-    my_vector[4] = rand() % 9 + 1;
-    my_vector[5] = rand() % 9 + 1;
+  for (int i = 0; i <= 9; i++) {
+    //2 8 1 8 6 8
+    my_vector[0] = 2;
+    my_vector[1] = 8;
+    my_vector[2] = 1;
+    my_vector[3] = 8;
+    my_vector[4] = 6;
+    my_vector[5] = 8;
+    // my_vector[0] = rand() % 9 + 1;
+    // my_vector[1] = rand() % 9 + 1;
+    // my_vector[2] = rand() % 9 + 1;
+    // my_vector[3] = rand() % 9 + 1;
+    // my_vector[4] = rand() % 9 + 1;
+    // my_vector[5] = rand() % 9 + 1;
+    print_vector(my_vector);
+    std::cout << std::endl;
     quickSort(my_vector, 0, n-1, "bug");
     correct = correct && std::is_sorted(my_vector.begin(), my_vector.end());
     std::cout << correct << std::endl;

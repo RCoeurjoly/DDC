@@ -15,7 +15,7 @@ void swap(int* a, int* b)
    array, and places all smaller (smaller than pivot)
    to left of pivot and all greater elements to right
    of pivot */
-int partition (std::vector<int> &my_vector, int low, int high)
+int partition(std::vector<int> &my_vector, int low, int high)
 {
   int pivot = my_vector[high];    // pivot
   int i = (low - 1);  // Index of smaller element
