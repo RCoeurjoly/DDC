@@ -12,9 +12,10 @@ HOST = 'localhost'
 PORT = 50007
 
 class ComparableTree(Tree):
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         return (isinstance(other, self.__class__)
             and self.toJSON() == other.toJSON())
+
     def toJSON(self):
         return json.dumps(self, default=lambda o: o.__dict__,
             sort_keys=True, indent=4)
@@ -64,7 +65,7 @@ class Node:
             args_tree.add(arg_tree_name)
         self.arguments_on_entry_tree = args_tree
         self.arguments_when_returning: List[gdb.Symbol] = []
-        self.arguments_when_returning_tree = ""
+        self.arguments_when_returning_tree: Optional[ComparableTree] = None
         self.global_variables_on_entry = global_variables
         self.global_variables_when_returning: List[gdb.Symbol] = []
         self.object_state_on_entry = object_state
@@ -74,9 +75,6 @@ class Node:
         self.iscorrect = Answer.IDK
         self.finished = False
         self.position = position
-
-    def __hash__(self):
-        return hash((self.name, self.arguments_on_entry_tree, self.arguments_when_returning_tree))
 
     def deepcopy(self, node):
         self.frame = None
@@ -98,7 +96,10 @@ class Node:
             self.children.append(temp)
         self.iscorrect = node.iscorrect
 
-    def get_tree(self, get_children=True, get_weight=True, get_correctness=True):
+    def get_tree(self,
+                 get_children: bool = True,
+                 get_weight: bool = True,
+                 get_correctness: bool = True) -> ComparableTree:
         tree = ComparableTree(self.name)
         if get_correctness:
             correct_tree = ComparableTree("correctness")
@@ -108,7 +109,9 @@ class Node:
             weight_tree = ComparableTree("weight")
             weight_tree.add(str(self.weight))
             tree.add(weight_tree)
-        if self.arguments_on_entry_tree != self.arguments_when_returning_tree:
+        if (self.arguments_on_entry_tree != self.arguments_when_returning_tree
+            and self.arguments_on_entry_tree is not None
+            and self.arguments_when_returning_tree is not None):
             tree.add(self.arguments_on_entry_tree)
             tree.add(self.arguments_when_returning_tree)
         if get_children and len(self.children) > 0:
@@ -119,46 +122,34 @@ class Node:
             tree.add(children_tree)
         return tree
 
-    def finish(self, arguments=None, global_variables=None, object_state=None, return_value=None):
+    def finish(self, arguments: List[gdb.Symbol] = [],
+               global_variables: List[gdb.Symbol] = [],
+               object_state: Optional[gdb.Symbol] = None,
+               return_value: Optional[gdb.Value] = None) -> None:
         assert(self.frame.is_valid())
         print("finishing node: " + self.name)
-        self.arguments_when_returning = arguments
-        args = ""
-        args_tree = ComparableTree("args when returning")
-        for arg in self.arguments_when_returning:
-            arg_tree_name = arg.print_name + " = "
-            if arg.value(self.frame).type.code == gdb.TYPE_CODE_PTR:
-                arg_tree_name += str(arg.value(self.frame).dereference())
-            else:
-                arg_tree_name += str(arg.value(self.frame).format_string(
-                    raw=False,
-                    pretty_arrays=True,
-                    pretty_structs=True,
-                    array_indexes=True,
-                    symbols=True,
-                    deref_refs=True))
-            args_tree.add(arg_tree_name)
-        self.arguments_when_returning_tree = args_tree
+        if len(arguments) > 0:
+            self.arguments_when_returning = arguments
+            args = ""
+            args_tree = ComparableTree("args when returning")
+            for arg in self.arguments_when_returning:
+                arg_tree_name = arg.print_name + " = "
+                if arg.value(self.frame).type.code == gdb.TYPE_CODE_PTR:
+                    arg_tree_name += str(arg.value(self.frame).dereference())
+                else:
+                    arg_tree_name += str(arg.value(self.frame).format_string(
+                        raw=False,
+                        pretty_arrays=True,
+                        pretty_structs=True,
+                        array_indexes=True,
+                        symbols=True,
+                        deref_refs=True))
+                    args_tree.add(arg_tree_name)
+            self.arguments_when_returning_tree = args_tree
         self.global_variables_when_returning = global_variables
         self.object_state_when_returning = object_state
         self.return_value = return_value
         self.finished = True
-
-    def evaluate(self, answer):
-        if type(answer) is str:
-            self.evaluate_str(answer)
-        if type(answer) is Answer:
-            self.evaluate_answer(answer)
-
-    def evaluate_str(self, answer):
-        if answer == "Yes":
-            self.iscorrect = Answer.YES
-        if answer == "No":
-            self.iscorrect = Answer.NO
-        if answer == "I don't know":
-            self.iscorrect = Answer.IDK
-        if answer == "Trusted":
-            self.iscorrect = Answer.TRUSTED
 
     def evaluate_answer(self, answer):
         self.iscorrect = answer
