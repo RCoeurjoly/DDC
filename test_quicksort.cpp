@@ -11,7 +11,7 @@ int main()
   std::vector<int> my_vector{ 0, 0, 0, 0, 0, 0 };
   const int n = 6;
   bool correct = true;
-  for (int i = 0; i <= 9; i++) {
+  for (int i = 0; i <= 99; i++) {
     my_vector[0] = rand() % 9 + 1;
     my_vector[1] = rand() % 9 + 1;
     my_vector[2] = rand() % 9 + 1;
