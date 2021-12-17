@@ -127,7 +127,6 @@ class Node:
         assert self.frame.is_valid()
         if arguments:
             self.arguments_when_returning = arguments
-            args = ""
             args_tree = ComparableTree("args when returning")
             for arg in self.arguments_when_returning:
                 arg_tree_name = arg.print_name + " = "
@@ -212,7 +211,6 @@ class SaveReturningNode(gdb.Command):
         assert len(arguments) > 0
         assert my_node.frame == gdb.newest_frame()
         my_node.finish(arguments=arguments)
-        my_node_tree = my_node.get_tree(False, False, False)
         if my_node.get_tree(False, False, False) in correct_node_trees:
             update_nodes_weight(my_debugging_session.node, my_node.position, -1)
             remove_node_from_tree(my_debugging_session.node, my_node.position)
@@ -240,7 +238,7 @@ class SaveReturningCorrectNode(gdb.Command):
             gdb.execute("n")
             return
         assert len(arguments) > 0
-        for index, pending_correct_node in enumerate(pending_correct_nodes):
+        for pending_correct_node in pending_correct_nodes:
             assert pending_correct_node.finished is False
             assert pending_correct_node.frame.is_valid()
         my_node = pending_correct_nodes[-1]
