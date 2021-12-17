@@ -1,9 +1,28 @@
 import gdb # type: ignore
+import copy
+import json
+import socket, pickle
 from enum import Enum
 from rich.tree import Tree
 from rich import print
 from simple_term_menu import TerminalMenu # type: ignore
 from typing import Set, List, Callable, Optional, Tuple
+
+HOST = 'localhost'
+PORT = 50007
+
+class ComparableTree(Tree):
+    def __eq__(self, other):
+        return (isinstance(other, self.__class__)
+            and self.toJSON() == other.toJSON())
+    def toJSON(self):
+        return json.dumps(self, default=lambda o: o.__dict__,
+            sort_keys=True, indent=4)
+    # def __hash__(self):
+    #     my_copy = copy.deepcopy(self.__dict__)
+    #     del my_copy["children"]
+    #     children = frozenset(copy.deepcopy(self.children))
+    #     return hash(frozenset(tuple([my_copy.items(), children])))
 
 class DebuggingSession:
     def __init__(self) -> None:
@@ -22,13 +41,14 @@ class Node:
                  frame: gdb.Frame,
                  arguments: List[gdb.Symbol] = [],
                  global_variables: List[gdb.Symbol] = [],
-                 object_state: Optional[gdb.Symbol] = None) -> None:
+                 object_state: Optional[gdb.Symbol] = None,
+                 position: List[int] = []) -> None:
         self.frame = frame
         self.name = frame.name() if isinstance(frame, gdb.Frame) else frame
         print("starting node: " + self.name)
         self.weight = 0
         self.arguments_on_entry = arguments
-        args_tree = Tree("args on entry")
+        args_tree = ComparableTree("args on entry")
         for arg in self.arguments_on_entry:
             arg_tree_name = arg.print_name + " = "
             if arg.value(self.frame).type.code == gdb.TYPE_CODE_PTR:
@@ -53,6 +73,10 @@ class Node:
         self.children: List[Node] = []
         self.iscorrect = Answer.IDK
         self.finished = False
+        self.position = position
+
+    def __hash__(self):
+        return hash((self.name, self.arguments_on_entry_tree, self.arguments_when_returning_tree))
 
     def deepcopy(self, node):
         self.frame = None
@@ -75,20 +99,20 @@ class Node:
         self.iscorrect = node.iscorrect
 
     def get_tree(self, get_children=True, get_weight=True, get_correctness=True):
-        tree = Tree(self.name)
+        tree = ComparableTree(self.name)
         if get_correctness:
-            correct_tree = Tree("correctness")
+            correct_tree = ComparableTree("correctness")
             correct_tree.add(str(self.iscorrect))
             tree.add(correct_tree)
         if get_weight:
-            weight_tree = Tree("weight")
+            weight_tree = ComparableTree("weight")
             weight_tree.add(str(self.weight))
             tree.add(weight_tree)
         if self.arguments_on_entry_tree != self.arguments_when_returning_tree:
             tree.add(self.arguments_on_entry_tree)
             tree.add(self.arguments_when_returning_tree)
         if get_children and len(self.children) > 0:
-            children_tree = Tree("children")
+            children_tree = ComparableTree("children")
             # tree.add("children")
             for child in self.children:
                 children_tree.add(child.get_tree())
@@ -100,7 +124,7 @@ class Node:
         print("finishing node: " + self.name)
         self.arguments_when_returning = arguments
         args = ""
-        args_tree = Tree("args when returning")
+        args_tree = ComparableTree("args when returning")
         for arg in self.arguments_when_returning:
             arg_tree_name = arg.print_name + " = "
             if arg.value(self.frame).type.code == gdb.TYPE_CODE_PTR:
@@ -202,6 +226,7 @@ class SaveReturningNode(gdb.Command):
         assert(len(arguments) > 0)
         assert(my_node.frame == gdb.newest_frame())
         my_node.finish(arguments=arguments)
+
         gdb.execute("n")
         return
 
@@ -220,7 +245,7 @@ class SaveReturningCorrectNode(gdb.Command):
         triggered_br_number = int(arguments_to_command[0])
         gdb.execute("reverse-step") # To execute this command, rr is needed
         global pending_correct_nodes
-        global correct_nodes
+        global correct_node_trees
         assert(len(pending_correct_nodes) > 0)
         arguments = [symbol for symbol in gdb.newest_frame().block()
                      if symbol.is_argument]
@@ -261,8 +286,9 @@ class SaveReturningCorrectNode(gdb.Command):
             raise AssertionError
         my_node.finish(arguments=arguments)
         assert(my_node.finished)
-        correct_nodes.add(my_node.get_tree(get_children=False, get_weight=False, get_correctness=False))
-        assert(len(correct_nodes) > 0)
+        my_node_tree = my_node.get_tree(get_children=False, get_weight=False, get_correctness=False)
+        correct_node_trees.append(my_node_tree)
+        assert(len(correct_node_trees) > 0)
         pending_correct_nodes.pop()
         #[breakpoint for breakpoint in gdb.breakpoints()][breakpoint_number_to_delete].delete()
         gdb.execute("n")
@@ -289,6 +315,7 @@ class CommandAddNodeToSession(gdb.Command):
             position = []
         else:
             position = add_node_to_tree(my_debugging_session.node, my_node, [])
+        my_node.position = position
         update_nodes_weight(my_debugging_session.node, position, 1)
         my_finish_br = MyFinishBreakpoint(position)
         print([breakpoint for breakpoint in gdb.breakpoints() if breakpoint.number == my_finish_br.number])
@@ -437,7 +464,7 @@ class TilTheEnd(gdb.Command):
 
     def __init__(self):
         super(TilTheEnd, self).__init__(
-            "till-the-end", gdb.COMMAND_USER)
+            "til-the-end", gdb.COMMAND_USER)
 
     def invoke(self, arg, from_tty):
         my_finish_breakpoint = [breakpoint for breakpoint in gdb.breakpoints(
@@ -456,6 +483,58 @@ class TilTheEnd(gdb.Command):
         return
 
 TilTheEnd()
+
+class ListenForCorrectNodes(gdb.Command):
+
+    def __init__(self):
+        super(ListenForCorrectNodes, self).__init__(
+            "listen-for-correct-nodes", gdb.COMMAND_USER)
+
+    def invoke(self, arg, from_tty):
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.bind((HOST, PORT))
+        s.listen(1)
+        # data = conn.recv(4096)
+        # global correct_node_trees
+        # correct_node_trees.append(pickle.loads(data))
+        # conn.close()
+        global correct_node_trees
+        gdb.execute("set pagination off")
+        conn = None
+        while True:
+            try:
+                conn, addr = s.accept()
+                print('Connected by', addr)
+                data = conn.recv(4096)
+                if not data:
+                    continue
+                correct_node_trees.append(pickle.loads(data))
+            except KeyboardInterrupt:
+                if conn:
+                    conn.close()
+                break
+        return
+
+ListenForCorrectNodes()
+
+class SendCorrectNodes(gdb.Command):
+
+    def __init__(self):
+        super(SendCorrectNodes, self).__init__(
+            "send-correct-nodes", gdb.COMMAND_USER)
+
+    def invoke(self, arg, from_tty):
+        global correct_node_trees
+        for index, correct_node_tree in enumerate(correct_node_trees):
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.connect((HOST, PORT))
+            # Pickle the object and send it to the server
+            data_string = pickle.dumps(correct_node_tree)
+            print("Sending node n# " + str(index))
+            s.send(data_string)
+        s.close()
+
+SendCorrectNodes()
 
 class PrintNodes(gdb.Command):
     """Print nodes of declarative debugging session"""
@@ -485,7 +564,7 @@ class MyFinishBreakpoint (gdb.FinishBreakpoint):
                                self.position).return_value = self.return_value
         return True
 
-    def out_of_scope ():
+    def out_of_scope(self):
         print ("abnormal finish")
 
 class MyReferenceFinishBreakpoint (gdb.FinishBreakpoint):
@@ -503,11 +582,11 @@ class MyReferenceFinishBreakpoint (gdb.FinishBreakpoint):
         pending_correct_nodes[position].return_value = self.return_value
         return True
 
-    def out_of_scope ():
+    def out_of_scope(self):
         print ("abnormal finish")
 
 my_debugging_session = DebuggingSession()
-correct_nodes: Set[Node] = set()
+correct_node_trees: List[ComparableTree] = []
 pending_correct_nodes: List[Node] = []
 
 # Functions
