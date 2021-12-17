@@ -43,6 +43,7 @@ class Node:
         self.name = frame.name() if isinstance(frame, gdb.Frame) else frame
         self.weight = 0
         self.arguments_on_entry = arguments
+        self.arguments_on_entry_tree: Optional[ComparableTree] = None
         if arguments:
             args_tree = ComparableTree("args on entry")
             assert arguments is not None
@@ -66,11 +67,12 @@ class Node:
         self.global_variables_when_returning: List[gdb.Symbol] = []
         self.object_state_on_entry = object_state
         self.object_state_when_returning = None
-        self.return_value = None
+        self.return_value: Optional[gdb.Value] = None
         self.children: List[Node] = []
-        self.iscorrect = Answer.IDK
-        self.finished = False
-        self.position = position
+        self.iscorrect: Answer = Answer.IDK
+        self.finished: bool = False
+        self.position: List[int] = position
+        self.saving_br_number: int = 0
 
     def deepcopy(self, node):
         self.frame = None
@@ -159,7 +161,6 @@ class CommandFinishSession(gdb.Command):
             "finish-debugging-session", gdb.COMMAND_USER)
 
     def invoke(self, arg, from_tty):
-        global my_debugging_session
         my_debugging_session.finish()
         return
 
@@ -194,7 +195,6 @@ class SaveReturningNode(gdb.Command):
         assert len(arguments_to_command) == 1
         triggered_br_number = int(arguments_to_command[0])
         gdb.execute("reverse-step") # To execute this command, rr is needed
-        global my_debugging_session
         arguments = [symbol for symbol in gdb.newest_frame().block()
                      if symbol.is_argument]
         my_node = get_unfinished_node_from_frame(
@@ -233,8 +233,6 @@ class SaveReturningCorrectNode(gdb.Command):
         assert len(arguments_to_command) == 1
         triggered_br_number = int(arguments_to_command[0])
         gdb.execute("reverse-step") # To execute this command, rr is needed
-        global pending_correct_nodes
-        global correct_node_trees
         assert len(pending_correct_nodes) > 0
         arguments = [symbol for symbol in gdb.newest_frame().block()
                      if symbol.is_argument]
@@ -273,7 +271,6 @@ class CommandAddNodeToSession(gdb.Command):
             "add-node-to-session", gdb.COMMAND_USER)
 
     def invoke(self, arg, from_tty):
-        global my_debugging_session
         # Variable: Symbol.is_argument
         arguments = [symbol for symbol in gdb.selected_frame().block()
                      if symbol.is_argument]
@@ -306,7 +303,6 @@ class CommandAddNodeToCorrectList(gdb.Command):
             "add-node-to-correct-set", gdb.COMMAND_USER)
 
     def invoke(self, arg, from_tty):
-        global pending_correct_nodes
         # Variable: Symbol.is_argument
         arguments = [symbol for symbol in gdb.selected_frame().block()
                      if symbol.is_argument]
@@ -373,7 +369,6 @@ class StartDeclarativeDebuggingSession(gdb.Command):
             "start-declarative-debugging-session", gdb.COMMAND_USER)
 
     def invoke(self, arg, from_tty):
-        global my_debugging_session
         if my_debugging_session.finished is False:
             my_finish_breakpoint = [breakpoint for breakpoint in gdb.breakpoints()
                                     if breakpoint.commands == "finish-debugging-session\n"]
@@ -454,11 +449,6 @@ class ListenForCorrectNodes(gdb.Command):
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.bind((HOST, PORT))
         s.listen(1)
-        # data = conn.recv(4096)
-        # global correct_node_trees
-        # correct_node_trees.append(pickle.loads(data))
-        # conn.close()
-        global correct_node_trees
         gdb.execute("set pagination off")
         conn = None
         while True:
@@ -484,7 +474,6 @@ class SendCorrectNodes(gdb.Command):
             "send-correct-nodes", gdb.COMMAND_USER)
 
     def invoke(self, arg, from_tty):
-        global correct_node_trees
         for index, correct_node_tree in enumerate(correct_node_trees):
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             s.connect((HOST, PORT))
@@ -503,7 +492,6 @@ class PrintNodes(gdb.Command):
         super(PrintNodes, self).__init__("print-nodes", gdb.COMMAND_USER)
 
     def invoke(self, arg, from_tty):
-        global my_debugging_session
         print_tree(my_debugging_session.node.get_tree())
         return
 
@@ -519,7 +507,6 @@ class MyFinishBreakpoint (gdb.FinishBreakpoint):
                          "next")
 
     def stop(self):
-        global my_debugging_session
         get_node_from_position(my_debugging_session.node,
                                self.position).return_value = self.return_value
         return True
@@ -534,7 +521,6 @@ class MyReferenceFinishBreakpoint (gdb.FinishBreakpoint):
                          "next")
 
     def stop(self):
-        global pending_correct_nodes
         pending_correct_nodes[self.position].return_value = self.return_value
         return True
 
