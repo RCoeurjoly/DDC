@@ -25,7 +25,7 @@ int palindrome(int a) {
 }
 
 int main() {
-  int n = 11;
+  int n = 1;
   int result = palindrome(n);
   if (result == n)
     std::cout << "Number "<< n <<" is a palindrome" << std::endl;
