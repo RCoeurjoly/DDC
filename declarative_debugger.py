@@ -195,7 +195,7 @@ class SetSuspectBreak(gdb.Breakpoint):
 class SetReferenceBreak(gdb.Breakpoint):
     def __init__(self, function):
         gdb.Breakpoint.__init__(self, function)
-        self.commands = ("add-node-to-correct-set\n")
+        self.commands = ("add-node-to-correct-list\n")
         # self.silent = True
 
     def stop(self):
@@ -232,28 +232,14 @@ class SaveReturningCorrectNode(gdb.Command):
             "save-returning-correct-node", gdb.COMMAND_USER)
 
     def invoke(self, arg, from_tty):
-        arguments_to_command = gdb.string_to_argv(arg)
-        assert len(arguments_to_command) == 1
-        triggered_br_number = int(arguments_to_command[0])
         gdb.execute("reverse-step") # To execute this command, rr is needed
         assert len(pending_correct_nodes) > 0
         arguments = [symbol for symbol in gdb.newest_frame().block()
                      if symbol.is_argument]
-        if len(arguments) == 0:
-            gdb.execute("n")
-            return
-        assert len(arguments) > 0
         for pending_correct_node in pending_correct_nodes:
             assert pending_correct_node.finished is False
             assert pending_correct_node.frame.is_valid()
         my_node = pending_correct_nodes[-1]
-        location_good_br = [breakpoint.location for breakpoint in gdb.breakpoints()
-                            if breakpoint.number == my_node.saving_br_number][0]
-        possible_saving_br_numbers = [breakpoint.number for breakpoint in gdb.breakpoints()
-                                      if breakpoint.location == location_good_br]
-        if triggered_br_number not in possible_saving_br_numbers:
-            gdb.execute("n")
-            return
         assert my_node.frame == gdb.newest_frame()
         my_node.finish(arguments=arguments)
         assert my_node.finished
@@ -295,24 +281,16 @@ class CommandAddNodeToCorrectList(gdb.Command):
 
     def __init__(self):
         super(CommandAddNodeToCorrectList, self).__init__(
-            "add-node-to-correct-set", gdb.COMMAND_USER)
+            "add-node-to-correct-list", gdb.COMMAND_USER)
 
     def invoke(self, arg, from_tty):
         # Variable: Symbol.is_argument
         arguments = [symbol for symbol in gdb.selected_frame().block()
                      if symbol.is_argument]
-        assert len(arguments) > 0
         my_node = Node(gdb.selected_frame(), arguments)
         pending_correct_nodes.append(my_node)
         position = len(pending_correct_nodes) - 1
         my_finish_br = MyReferenceFinishBreakpoint(position)
-        my_finish_breakpoint = [breakpoint
-                                for breakpoint in gdb.breakpoints()
-                                if breakpoint.number == my_finish_br.number][0]
-        my_br = gdb.Breakpoint(my_finish_breakpoint.location, temporary=False)
-        my_br.commands = ("save-returning-correct-node " + str(my_br.number) + "\n")
-        my_node.saving_br_number = my_br.number
-        my_finish_breakpoint.delete()
         return
 
 CommandAddNodeToCorrectList()
@@ -384,18 +362,25 @@ class TilTheEnd(gdb.Command):
             "til-the-end", gdb.COMMAND_USER)
 
     def invoke(self, arg, from_tty):
-        my_finish_breakpoint = [breakpoint for breakpoint in gdb.breakpoints()
-                                if breakpoint.commands == "finish-debugging-session\n"]
-        if len(my_finish_breakpoint) != 0:
-            hit_count = my_finish_breakpoint[0].hit_count
-        else:
-            hit_count = 0
-        while (hit_count == 0 and gdb.selected_inferior().pid != 0):
+        initial_br_number = len([breakpoint for breakpoint in gdb.breakpoints()
+                                 if breakpoint.commands == "add-node-to-correct-list\n"])
+        # Reaching first correct function, which is going to create a finish breakpoint
+        total_br_number = len([breakpoint for breakpoint in gdb.breakpoints()])
+        while (total_br_number == initial_br_number):
             gdb.execute("c")
-            if len(my_finish_breakpoint) != 0:
-                hit_count = my_finish_breakpoint[0].hit_count
-            else:
-                hit_count = 0
+            total_br_number = len([breakpoint for breakpoint in gdb.breakpoints()])
+        # The sum of hit_count of all correct nodes should be greater than 0
+        assert reduce(lambda x, y: x + y, [breakpoint.hit_count for breakpoint in gdb.breakpoints()
+                                           if breakpoint.commands == "add-node-to-correct-list\n"]) > 0
+        # assert False
+        while (gdb.selected_inferior().is_valid()):
+            current_br_number = len([breakpoint for breakpoint in gdb.breakpoints()])
+            print(len([breakpoint for breakpoint in gdb.breakpoints()]))
+            if (current_br_number < total_br_number):
+                assert False
+                gdb.execute("save-returning-correct-node")
+            gdb.execute("c")
+            total_br_number = len([breakpoint for breakpoint in gdb.breakpoints()])
         return
 
 TilTheEnd()
@@ -474,11 +459,10 @@ class MyReferenceFinishBreakpoint(gdb.FinishBreakpoint):
     def __init__(self, position):
         super(MyReferenceFinishBreakpoint, self).__init__()
         self.position = position
-        self.commands = ("reverse-step\n"
-                         "save-returning-correct-node\n"
-                         "next")
+        self.commands = ("save-returning-correct-node")
 
     def stop(self):
+        global pending_correct_nodes
         pending_correct_nodes[self.position].return_value = self.return_value
         return True
 
@@ -773,9 +757,6 @@ def build_tree() -> bool:
               + ". Please reconsider")
         return False
     while (total_br_number != initial_br_number):
-        current_br_number = len([breakpoint for breakpoint in gdb.breakpoints()])
-        if (current_br_number < total_br_number):
-            gdb.execute("save-returning-node")
         gdb.execute("c")
         total_br_number = len([breakpoint for breakpoint in gdb.breakpoints()])
     my_debugging_session.tree_built()
