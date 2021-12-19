@@ -2,6 +2,7 @@ import json
 import socket
 import pickle
 from enum import Enum
+from functools import reduce
 import gdb # type: ignore
 from rich.tree import Tree
 from rich import print as print_tree
@@ -24,13 +25,13 @@ class DebuggingSession:
     def __init__(self) -> None:
         self.node = None
         self.started = False
-        self.finished = False
+        self.is_tree_built = False
 
     def start(self) -> None:
         self.started = True
 
-    def finish(self) -> None:
-        self.finished = True
+    def tree_built(self) -> None:
+        self.is_tree_built = True
 
 class Node:
     def __init__(self,
@@ -135,19 +136,7 @@ class Node:
                return_value: Optional[gdb.Value] = None) -> None:
         print("loooooooooooooooooooool")
         assert self.frame.is_valid()
-        if arguments:
-            pass
-        else:
-            print("No arguments!")
-            assert(False)
-        if len(arguments) > 0:
-            print("Empty list of arguments!")
-            assert(False)
-        if exists_pointer_or_ref(arguments, self.frame):
-            print("No references or pointers arguments!")
-            assert(False)
         if arguments and len(arguments) > 0 and exists_pointer_or_ref(arguments, self.frame):
-            assert(False)
             self.arguments_when_returning = arguments
             args_tree = ComparableTree("args when returning")
             for arg in self.arguments_when_returning:
@@ -179,27 +168,39 @@ class CommandFinishSession(gdb.Command):
             "finish-debugging-session", gdb.COMMAND_USER)
 
     def invoke(self, arg, from_tty):
-        my_debugging_session.finish()
+        global my_debugging_session
+        my_debugging_session.tree_built()
         return
 
 CommandFinishSession()
 
-class SetBreak(gdb.Breakpoint):
-    def __init__(self, function, final=False, reference_node=False):
+class SetFinalBreak(gdb.Breakpoint):
+    def __init__(self, function):
         gdb.Breakpoint.__init__(self, function)
-        if final:
-            self.commands = "finish-debugging-session\n"
-            self.silent = False
-        elif reference_node is False:
-            self.commands = ("add-node-to-session2\n")
-            # self.silent = True
-        else:
-            self.commands = ("add-node-to-correct-set\n")
-            # self.silent = True
+        self.commands = "finish-debugging-session\n"
+        self.silent = False
 
     def stop(self):
-        print("I should be stopping here!!!!!!!!!!!")
-        return True  # do not stop the execution at this point
+        return True  # stop the execution at this point
+
+class SetSuspectBreak(gdb.Breakpoint):
+    def __init__(self, function):
+        gdb.Breakpoint.__init__(self, function)
+        self.commands = ("add-node-to-session2\n")
+        self.silent = False
+        # self.silent = True
+
+    def stop(self):
+        return True  # stop the execution at this point
+
+class SetReferenceBreak(gdb.Breakpoint):
+    def __init__(self, function):
+        gdb.Breakpoint.__init__(self, function)
+        self.commands = ("add-node-to-correct-set\n")
+        # self.silent = True
+
+    def stop(self):
+        return True  # stop the execution at this point
 
 class SaveReturningNode(gdb.Command):
     """Save the info at the moment a node is returning in declarative debugging session"""
@@ -259,7 +260,7 @@ class SaveReturningNode2(gdb.Command):
         if my_node.get_tree(False, False, False) in correct_node_trees:
             update_nodes_weight(my_debugging_session.node, my_node.position, -1)
             remove_node_from_tree(my_debugging_session.node, my_node.position)
-        gdb.execute("c")
+        gdb.execute("n")
         return
 
 SaveReturningNode2()
@@ -398,7 +399,7 @@ class CommandSuspectFunction(gdb.Command):
             "suspect-function", gdb.COMMAND_USER)
 
     def invoke(self, arg, from_tty):
-        SetBreak(arg, False)
+        SetSuspectBreak(arg)
         return
 
 CommandSuspectFunction()
@@ -411,7 +412,7 @@ class CommandSaveCorrectFunction(gdb.Command):
             "save-correct-function", gdb.COMMAND_USER)
 
     def invoke(self, arg, from_tty):
-        SetBreak(arg, False, True)
+        SetReferenceBreak(arg)
         return
 
 CommandSaveCorrectFunction()
@@ -424,7 +425,7 @@ class CommandFinalBreakpoint(gdb.Command):
             "final-point", gdb.COMMAND_USER)
 
     def invoke(self, arg, from_tty):
-        SetBreak(arg, True)
+        SetFinalBreak(arg)
         return
 
 CommandFinalBreakpoint()
@@ -492,50 +493,15 @@ class StartDeclarativeDebuggingSession2(gdb.Command):
             "start-declarative-debugging-session2", gdb.COMMAND_USER)
 
     def invoke(self, arg, from_tty):
-        if my_debugging_session.finished is False:
-            my_finish_breakpoint = [breakpoint for breakpoint in gdb.breakpoints()
-                                    if breakpoint.commands == "finish-debugging-session\n"]
-            if len(my_finish_breakpoint) != 0:
-                hit_count = my_finish_breakpoint[0].hit_count
-            else:
-                hit_count = 0
-            while (hit_count == 0 and gdb.selected_inferior().pid != 0):
-                # gdb.execute("save-returning-node2")
-                gdb.execute("c")
-                if len(my_finish_breakpoint) != 0:
-                    hit_count = my_finish_breakpoint[0].hit_count
-                else:
-                    hit_count = 0
-        print("Finished building debugging tree. Please choose debugging strategy")
-        options = ["Top-down",
-                   "Divide and Query (Hirunkitti)",
-                   "Heaviest first"]
-        terminal_menu = TerminalMenu(options)
-        menu_entry_index = terminal_menu.show()
-        strategies_dict = {
-            "Top-down": top_down_strategy,
-            "Divide and Query (Hirunkitti)": divide_and_query_Hirunkitti_strategy,
-            "Heaviest first": heaviest_first_strategy
-        }
-        print(f"You have selected {options[menu_entry_index]}!")
-        marked_execution_tree = Node("frame")
-        marked_execution_tree.deepcopy(my_debugging_session.node)
-        answer = ask_about_node(marked_execution_tree)
-        if answer in [Answer.YES, Answer.TRUSTED]:
-            print("No buggy node found")
-            return
-        if answer is Answer.IDK:
-            print("If you don't know, I cannot help you")
-            return
-        marked_execution_tree.evaluate_answer(Answer.NO)
-        strategy = strategies_dict[options[menu_entry_index]]
-        buggy_node = general_debugging_algorithm(marked_execution_tree, strategy)
-        if buggy_node is None:
-            print("No buggy node found")
-            return
-        print("Buggy node found")
-        print_tree(buggy_node.get_tree())
-        return
+        if can_start_asking_questions():
+            return ask_questions()
+        elif can_start_building_tree():
+            print("Building tree")
+            if build_tree():
+                return ask_questions()
+            return False
+        else:
+            return False
 
 StartDeclarativeDebuggingSession2()
 
@@ -625,13 +591,13 @@ class MyFinishBreakpoint(gdb.FinishBreakpoint):
     def __init__(self, position):
         super(MyFinishBreakpoint, self).__init__()
         self.position = position
+        self.commands = ("save-returning-node2")
 
     def stop(self):
         global my_debugging_session
         my_node = get_node_from_position(my_debugging_session.node, self.position)
         my_node.return_value = self.return_value
-        print("I should not stop here !!!!!!!!!!!!!!!!!!!!!!")
-        return False
+        return True
 
 class MyReferenceFinishBreakpoint(gdb.FinishBreakpoint):
     def __init__(self, position):
@@ -891,6 +857,105 @@ def exists_pointer_or_ref(arguments: List[gdb.Symbol], frame: gdb.Frame) -> bool
         if argument.value(frame).type.code in [gdb.TYPE_CODE_PTR, gdb.TYPE_CODE_REF]:
             return True
     return False
+
+def can_start_asking_questions() -> bool:
+    if (my_debugging_session.is_tree_built is True):
+        return True
+    return False
+
+def can_start_building_tree() -> bool:
+    """Returns true if:
+    - there are suspect breakpoints
+    - and if total br is equal to suspect and final br.
+    False otherwise"""
+    suspect_br_number = len([breakpoint for breakpoint in gdb.breakpoints()
+                             if breakpoint.commands == "add-node-to-session2\n"])
+    suspect_plus_final_br_number = len([breakpoint for breakpoint in gdb.breakpoints()
+                                        if breakpoint.commands in ["add-node-to-session2\n",
+                                                                   "finish-debugging-session\n"]])
+    total_br_number = len([breakpoint for breakpoint in gdb.breakpoints()])
+    print("Suspect: " + str(suspect_br_number))
+    print("suspect plus final: " + str(suspect_plus_final_br_number))
+    print("total: " + str(total_br_number))
+    if suspect_br_number > 0:
+        if suspect_plus_final_br_number == total_br_number:
+            return True
+        print("Please delete all breakpoints that are not suspect or final")
+        return False
+    print("Please add suspect breakpoint(s)")
+    return False
+
+def build_tree() -> bool:
+    """Returns True if tree was built successfully. False otherwise"""
+    initial_br_number = len([breakpoint for breakpoint in gdb.breakpoints()
+                             if breakpoint.commands in ["add-node-to-session2\n",
+                                                        "finish-debugging-session\n"]])
+    # Reaching first suspect function, which is going to create a finish breakpoint
+    total_br_number = len([breakpoint for breakpoint in gdb.breakpoints()])
+    while (total_br_number == initial_br_number):
+        gdb.execute("c")
+        total_br_number = len([breakpoint for breakpoint in gdb.breakpoints()])
+    # The sum of hit_count of all suspect nodes should be greater than 0
+    assert reduce(lambda x, y: x + y, [breakpoint.hit_count for breakpoint in gdb.breakpoints()
+                                       if breakpoint.commands == "add-node-to-session2\n"]) > 0
+    # First finish breakpoint reached, reaching final state
+    # If a final-point has already been reached, exit with error
+    is_hit, breakpoint = hit_final_breakpoint()
+    if is_hit:
+        print("Final breakpoint " + str(breakpoint.number)
+              + " has been hit " + str(breakpoint.hit_count)
+              + ". Please reconsider")
+        return False
+    while (total_br_number != initial_br_number):
+        current_br_number = len([breakpoint for breakpoint in gdb.breakpoints()])
+        if (current_br_number < total_br_number):
+            gdb.execute("save-returning-node2")
+        gdb.execute("c")
+        total_br_number = len([breakpoint for breakpoint in gdb.breakpoints()])
+    my_debugging_session.tree_built()
+    return True
+
+def hit_final_breakpoint():
+    for breakpoint in [breakpoint for breakpoint in gdb.breakpoints()
+                       if breakpoint.commands == "finish-debugging-session\n"]:
+        if breakpoint.hit_count > 0:
+            return True, breakpoint
+    return False, None
+
+
+def ask_questions() -> bool:
+    """Returns True if buggy node is found. False otherwise"""
+    assert my_debugging_session.is_tree_built
+    print("Debugging tree is built. Please choose debugging strategy")
+    options = ["Top-down",
+               "Divide and Query (Hirunkitti)",
+               "Heaviest first"]
+    terminal_menu = TerminalMenu(options)
+    menu_entry_index = terminal_menu.show()
+    strategies_dict = {
+        "Top-down": top_down_strategy,
+        "Divide and Query (Hirunkitti)": divide_and_query_Hirunkitti_strategy,
+        "Heaviest first": heaviest_first_strategy
+    }
+    print(f"You have selected {options[menu_entry_index]}!")
+    marked_execution_tree = Node("frame")
+    marked_execution_tree.deepcopy(my_debugging_session.node)
+    answer = ask_about_node(marked_execution_tree)
+    if answer in [Answer.YES, Answer.TRUSTED]:
+        print("No buggy node found")
+        return False
+    if answer is Answer.IDK:
+        print("If you don't know, I cannot help you")
+        return False
+    marked_execution_tree.evaluate_answer(Answer.NO)
+    strategy = strategies_dict[options[menu_entry_index]]
+    buggy_node = general_debugging_algorithm(marked_execution_tree, strategy)
+    if buggy_node is None:
+        print("No buggy node found")
+        return False
+    print("Buggy node found")
+    print_tree(buggy_node.get_tree())
+    return True
 
 def cut_chain(chain, i, j):
     assert len(chain) >= 2
