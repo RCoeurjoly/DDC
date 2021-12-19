@@ -186,7 +186,7 @@ class SetFinalBreak(gdb.Breakpoint):
 class SetSuspectBreak(gdb.Breakpoint):
     def __init__(self, function):
         gdb.Breakpoint.__init__(self, function)
-        self.commands = ("add-node-to-session2\n")
+        self.commands = ("add-node-to-session\n")
         self.silent = True
 
     def stop(self):
@@ -209,26 +209,11 @@ class SaveReturningNode(gdb.Command):
             "save-returning-node", gdb.COMMAND_USER)
 
     def invoke(self, arg, from_tty):
-        assert False;
-        arguments_to_command = gdb.string_to_argv(arg)
-        assert len(arguments_to_command) == 1
-        triggered_br_number = int(arguments_to_command[0])
         gdb.execute("reverse-step") # To execute this command, rr is needed
         arguments = [symbol for symbol in gdb.newest_frame().block()
                      if symbol.is_argument]
         my_node = get_unfinished_node_from_frame(
             my_debugging_session.node, gdb.newest_frame())
-        if len(arguments) == 0:
-            gdb.execute("n")
-            return
-        location_good_br = [breakpoint.location for breakpoint in gdb.breakpoints()
-                            if breakpoint.number == my_node.saving_br_number][0]
-        possible_saving_br_numbers = [breakpoint.number for breakpoint in gdb.breakpoints()
-                                      if breakpoint.location == location_good_br]
-        if triggered_br_number not in possible_saving_br_numbers:
-            gdb.execute("n")
-            return
-        assert len(arguments) > 0
         assert my_node.frame == gdb.newest_frame()
         my_node.finish(arguments=arguments)
         if my_node.get_tree(False, False, False) in correct_node_trees:
@@ -238,31 +223,6 @@ class SaveReturningNode(gdb.Command):
         return
 
 SaveReturningNode()
-
-
-class SaveReturningNode2(gdb.Command):
-    """Save the info at the moment a node is returning in declarative debugging session"""
-
-    def __init__(self):
-        super(SaveReturningNode2, self).__init__(
-            "save-returning-node2", gdb.COMMAND_USER)
-
-    def invoke(self, arg, from_tty):
-        gdb.execute("reverse-step") # To execute this command, rr is needed
-        arguments = [symbol for symbol in gdb.newest_frame().block()
-                     if symbol.is_argument]
-        my_node = get_unfinished_node_from_frame(
-            my_debugging_session.node, gdb.newest_frame())
-        assert len(arguments) > 0
-        assert my_node.frame == gdb.newest_frame()
-        my_node.finish(arguments=arguments)
-        if my_node.get_tree(False, False, False) in correct_node_trees:
-            update_nodes_weight(my_debugging_session.node, my_node.position, -1)
-            remove_node_from_tree(my_debugging_session.node, my_node.position)
-        gdb.execute("n")
-        return
-
-SaveReturningNode2()
 
 class SaveReturningCorrectNode(gdb.Command):
     """Save the info at the moment a node is returning in correct nodes list"""
@@ -315,39 +275,6 @@ class CommandAddNodeToSession(gdb.Command):
 
     def invoke(self, arg, from_tty):
         # Variable: Symbol.is_argument
-        assert False;
-        arguments = [symbol for symbol in gdb.selected_frame().block()
-                     if symbol.is_argument]
-        my_node = Node(gdb.selected_frame(), arguments)
-        if my_debugging_session.node is None:
-            # First node
-            my_debugging_session.node = my_node
-            position = []
-        else:
-            position = add_node_to_tree(my_debugging_session.node, my_node, [])
-        my_node.position = position
-        update_nodes_weight(my_debugging_session.node, position, 1)
-        my_finish_br = MyFinishBreakpoint(position)
-        my_finish_breakpoint = [breakpoint
-                                for breakpoint in gdb.breakpoints()
-                                if breakpoint.number == my_finish_br.number][0]
-        my_br = gdb.Breakpoint(my_finish_breakpoint.location, temporary=False)
-        my_node.saving_br_number = my_br.number
-        my_finish_breakpoint.delete()
-        my_br.commands = ("save-returning-node " + str(my_br.number) + "\n")
-        return
-
-CommandAddNodeToSession()
-
-class CommandAddNodeToSession2(gdb.Command):
-    """Set breakpoint for ending debugging session"""
-
-    def __init__(self):
-        super(CommandAddNodeToSession2, self).__init__(
-            "add-node-to-session2", gdb.COMMAND_USER)
-
-    def invoke(self, arg, from_tty):
-        # Variable: Symbol.is_argument
         arguments = [symbol for symbol in gdb.selected_frame().block() if symbol.is_argument]
         my_node = Node(gdb.selected_frame(), arguments)
         if my_debugging_session.node is None:
@@ -361,7 +288,7 @@ class CommandAddNodeToSession2(gdb.Command):
         my_finish_br = MyFinishBreakpoint(position)
         return
 
-CommandAddNodeToSession2()
+CommandAddNodeToSession()
 
 class CommandAddNodeToCorrectList(gdb.Command):
     """Set breakpoint for ending debugging session"""
@@ -437,61 +364,6 @@ class StartDeclarativeDebuggingSession(gdb.Command):
             "start-declarative-debugging-session", gdb.COMMAND_USER)
 
     def invoke(self, arg, from_tty):
-        assert False;
-        if my_debugging_session.finished is False:
-            my_finish_breakpoint = [breakpoint for breakpoint in gdb.breakpoints()
-                                    if breakpoint.commands == "finish-debugging-session\n"]
-            if len(my_finish_breakpoint) != 0:
-                hit_count = my_finish_breakpoint[0].hit_count
-            else:
-                hit_count = 0
-            while (hit_count == 0 and gdb.selected_inferior().pid != 0):
-                gdb.execute("c")
-                if len(my_finish_breakpoint) != 0:
-                    hit_count = my_finish_breakpoint[0].hit_count
-                else:
-                    hit_count = 0
-        print("Finished building debugging tree. Please choose debugging strategy")
-        options = ["Top-down",
-                   "Divide and Query (Hirunkitti)",
-                   "Heaviest first"]
-        terminal_menu = TerminalMenu(options)
-        menu_entry_index = terminal_menu.show()
-        strategies_dict = {
-            "Top-down": top_down_strategy,
-            "Divide and Query (Hirunkitti)": divide_and_query_Hirunkitti_strategy,
-            "Heaviest first": heaviest_first_strategy
-        }
-        print(f"You have selected {options[menu_entry_index]}!")
-        marked_execution_tree = Node("frame")
-        marked_execution_tree.deepcopy(my_debugging_session.node)
-        answer = ask_about_node(marked_execution_tree)
-        if answer in [Answer.YES, Answer.TRUSTED]:
-            print("No buggy node found")
-            return
-        if answer is Answer.IDK:
-            print("If you don't know, I cannot help you")
-            return
-        marked_execution_tree.evaluate_answer(Answer.NO)
-        strategy = strategies_dict[options[menu_entry_index]]
-        buggy_node = general_debugging_algorithm(marked_execution_tree, strategy)
-        if buggy_node is None:
-            print("No buggy node found")
-            return
-        print("Buggy node found")
-        print_tree(buggy_node.get_tree())
-        return
-
-StartDeclarativeDebuggingSession()
-
-class StartDeclarativeDebuggingSession2(gdb.Command):
-    """Set breakpoint on setField from Quickfix. It takes the tag number as argument"""
-
-    def __init__(self):
-        super(StartDeclarativeDebuggingSession2, self).__init__(
-            "start-declarative-debugging-session2", gdb.COMMAND_USER)
-
-    def invoke(self, arg, from_tty):
         if can_start_asking_questions():
             return ask_questions()
         elif can_start_building_tree():
@@ -502,7 +374,7 @@ class StartDeclarativeDebuggingSession2(gdb.Command):
         else:
             return False
 
-StartDeclarativeDebuggingSession2()
+StartDeclarativeDebuggingSession()
 
 class TilTheEnd(gdb.Command):
     """Set breakpoint on setField from Quickfix. It takes the tag number as argument"""
@@ -590,7 +462,7 @@ class MyFinishBreakpoint(gdb.FinishBreakpoint):
     def __init__(self, position):
         super(MyFinishBreakpoint, self).__init__()
         self.position = position
-        self.commands = ("save-returning-node2")
+        self.commands = ("save-returning-node")
 
     def stop(self):
         global my_debugging_session
@@ -866,9 +738,9 @@ def can_start_building_tree() -> bool:
     - and if total br is equal to suspect and final br.
     False otherwise"""
     suspect_br_number = len([breakpoint for breakpoint in gdb.breakpoints()
-                             if breakpoint.commands == "add-node-to-session2\n"])
+                             if breakpoint.commands == "add-node-to-session\n"])
     suspect_plus_final_br_number = len([breakpoint for breakpoint in gdb.breakpoints()
-                                        if breakpoint.commands in ["add-node-to-session2\n",
+                                        if breakpoint.commands in ["add-node-to-session\n",
                                                                    "finish-debugging-session\n"]])
     total_br_number = len([breakpoint for breakpoint in gdb.breakpoints()])
     if suspect_br_number > 0:
@@ -882,7 +754,7 @@ def can_start_building_tree() -> bool:
 def build_tree() -> bool:
     """Returns True if tree was built successfully. False otherwise"""
     initial_br_number = len([breakpoint for breakpoint in gdb.breakpoints()
-                             if breakpoint.commands in ["add-node-to-session2\n",
+                             if breakpoint.commands in ["add-node-to-session\n",
                                                         "finish-debugging-session\n"]])
     # Reaching first suspect function, which is going to create a finish breakpoint
     total_br_number = len([breakpoint for breakpoint in gdb.breakpoints()])
@@ -891,7 +763,7 @@ def build_tree() -> bool:
         total_br_number = len([breakpoint for breakpoint in gdb.breakpoints()])
     # The sum of hit_count of all suspect nodes should be greater than 0
     assert reduce(lambda x, y: x + y, [breakpoint.hit_count for breakpoint in gdb.breakpoints()
-                                       if breakpoint.commands == "add-node-to-session2\n"]) > 0
+                                       if breakpoint.commands == "add-node-to-session\n"]) > 0
     # First finish breakpoint reached, reaching final state
     # If a final-point has already been reached, exit with error
     is_hit, breakpoint = hit_final_breakpoint()
@@ -903,7 +775,7 @@ def build_tree() -> bool:
     while (total_br_number != initial_br_number):
         current_br_number = len([breakpoint for breakpoint in gdb.breakpoints()])
         if (current_br_number < total_br_number):
-            gdb.execute("save-returning-node2")
+            gdb.execute("save-returning-node")
         gdb.execute("c")
         total_br_number = len([breakpoint for breakpoint in gdb.breakpoints()])
     my_debugging_session.tree_built()
