@@ -134,12 +134,12 @@ class Node:
                global_variables: Optional[List[gdb.Symbol]] = None,
                object_state: Optional[gdb.Symbol] = None,
                return_value: Optional[gdb.Value] = None) -> None:
-        print("loooooooooooooooooooool")
         assert self.frame.is_valid()
-        if arguments and len(arguments) > 0 and exists_pointer_or_ref(arguments, self.frame):
+        pointer_or_ref_args = get_pointer_or_ref(arguments, self.frame)
+        if arguments and len(arguments) > 0 and len(pointer_or_ref_args) > 0:
             self.arguments_when_returning = arguments
             args_tree = ComparableTree("args when returning")
-            for arg in self.arguments_when_returning:
+            for arg in pointer_or_ref_args:
                 arg_tree_name = arg.print_name + " = "
                 if arg.value(self.frame).type.code == gdb.TYPE_CODE_PTR:
                     arg_tree_name += str(arg.value(self.frame).dereference())
@@ -178,7 +178,7 @@ class SetFinalBreak(gdb.Breakpoint):
     def __init__(self, function):
         gdb.Breakpoint.__init__(self, function)
         self.commands = "finish-debugging-session\n"
-        self.silent = False
+        self.silent = True
 
     def stop(self):
         return True  # stop the execution at this point
@@ -187,8 +187,7 @@ class SetSuspectBreak(gdb.Breakpoint):
     def __init__(self, function):
         gdb.Breakpoint.__init__(self, function)
         self.commands = ("add-node-to-session2\n")
-        self.silent = False
-        # self.silent = True
+        self.silent = True
 
     def stop(self):
         return True  # stop the execution at this point
@@ -851,12 +850,10 @@ def get_unfinished_node_from_frame(marked_execution_tree: Node,
     assert len(marked_execution_tree.children) > 0
     return get_unfinished_node_from_frame(marked_execution_tree.children[-1], frame)
 
-def exists_pointer_or_ref(arguments: List[gdb.Symbol], frame: gdb.Frame) -> bool:
+def get_pointer_or_ref(arguments: List[gdb.Symbol], frame: gdb.Frame) -> List[gdb.Symbol]:
     assert len(arguments) > 0
-    for argument in arguments:
-        if argument.value(frame).type.code in [gdb.TYPE_CODE_PTR, gdb.TYPE_CODE_REF]:
-            return True
-    return False
+    return [argument for argument in arguments
+            if argument.value(frame).type.code in [gdb.TYPE_CODE_PTR, gdb.TYPE_CODE_REF]]
 
 def can_start_asking_questions() -> bool:
     if (my_debugging_session.is_tree_built is True):
@@ -874,9 +871,6 @@ def can_start_building_tree() -> bool:
                                         if breakpoint.commands in ["add-node-to-session2\n",
                                                                    "finish-debugging-session\n"]])
     total_br_number = len([breakpoint for breakpoint in gdb.breakpoints()])
-    print("Suspect: " + str(suspect_br_number))
-    print("suspect plus final: " + str(suspect_plus_final_br_number))
-    print("total: " + str(total_br_number))
     if suspect_br_number > 0:
         if suspect_plus_final_br_number == total_br_number:
             return True
