@@ -51,11 +51,22 @@
         # Notice the reference to nixpkgs here.
         with import nixpkgs { system = "x86_64-linux"; };
         stdenv.mkDerivation {
-          name = "quicksort";
+          name = "vector_function";
           src = self;
           dontStrip = true;
           buildPhase = "gcc -O0 -g -o vector_function ./vector_function.cpp -lstdc++";
           installPhase = "mkdir -p $out/tests; install -t $out/tests vector_function";
+        };
+
+      packages.x86_64-linux.palindrome =
+        # Notice the reference to nixpkgs here.
+        with import nixpkgs { system = "x86_64-linux"; };
+        stdenv.mkDerivation {
+          name = "palindrome";
+          src = self;
+          dontStrip = true;
+          buildPhase = "gcc -O0 -g -o palindrome ./palindrome.cpp -lstdc++";
+          installPhase = "mkdir -p $out/tests; install -t $out/tests palindrome";
         };
 
       devShell.x86_64-linux = pkgs.mkShell {

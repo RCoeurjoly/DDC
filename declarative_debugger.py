@@ -68,6 +68,7 @@ class Node:
         self.object_state_on_entry = object_state
         self.object_state_when_returning = None
         self.return_value: Optional[gdb.Value] = None
+        self.return_value_tree: Optional[ComparableTree] = None
         self.children: List[Node] = []
         self.iscorrect: Answer = Answer.IDK
         self.finished: bool = False
@@ -112,6 +113,13 @@ class Node:
             and self.arguments_when_returning_tree is not None):
             tree.add(self.arguments_on_entry_tree)
             tree.add(self.arguments_when_returning_tree)
+        if self.return_value_tree:
+            tree.add(self.return_value_tree)
+        elif self.return_value is not None:
+            return_value_tree = ComparableTree("return value")
+            return_value_tree.add(self.return_value.format_string())
+            self.return_value_tree = return_value_tree
+            tree.add(self.return_value_tree)
         if get_children and len(self.children) > 0:
             children_tree = ComparableTree("children")
             for child in self.children:
@@ -142,11 +150,8 @@ class Node:
                         deref_refs=True))
                 args_tree.add(arg_tree_name)
             self.arguments_when_returning_tree = args_tree
-        else:
-            assert False
         self.global_variables_when_returning = global_variables
         self.object_state_when_returning = object_state
-        self.return_value = return_value
         self.finished = True
 
     def evaluate_answer(self, answer):
@@ -499,22 +504,23 @@ class MyFinishBreakpoint (gdb.FinishBreakpoint):
     def __init__(self, position):
         super(MyFinishBreakpoint, self).__init__()
         self.position = position
-        self.commands = (
-                         "reverse-step\n"
+        self.commands = ("reverse-step\n"
                          "save-returning-node\n"
                          "next")
 
     def stop(self):
-        get_node_from_position(my_debugging_session.node,
-                               self.position).return_value = self.return_value
+        print("adding return value " + self.return_value.format_string())
+        global my_debugging_session
+        my_node = get_node_from_position(my_debugging_session.node, self.position)
+        my_node.return_value = self.return_value
+        print(my_node.return_value.format_string())
         return True
 
 class MyReferenceFinishBreakpoint (gdb.FinishBreakpoint):
     def __init__(self, position):
         super(MyReferenceFinishBreakpoint, self).__init__()
         self.position = position
-        self.commands = (
-                         "reverse-step\n"
+        self.commands = ("reverse-step\n"
                          "save-returning-correct-node\n"
                          "next")
 
