@@ -374,11 +374,6 @@ class TilTheEnd(gdb.Command):
                                            if breakpoint.commands == "add-node-to-correct-list\n"]) > 0
         # assert False
         while (gdb.selected_inferior().is_valid()):
-            current_br_number = len([breakpoint for breakpoint in gdb.breakpoints()])
-            print(len([breakpoint for breakpoint in gdb.breakpoints()]))
-            if (current_br_number < total_br_number):
-                assert False
-                gdb.execute("save-returning-correct-node")
             gdb.execute("c")
             total_br_number = len([breakpoint for breakpoint in gdb.breakpoints()])
         return
