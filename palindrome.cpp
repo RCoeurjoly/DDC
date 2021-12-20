@@ -12,21 +12,25 @@
 #include <bits/stdc++.h>
 #include <set>
 
-int palindrome(int a, int t, std::string gdb_bug="") {
+int trivial(int a) {
+  return a;
+}
+
+int reverse_int(int a, int t, std::string gdb_bug="") {
   if (a == 0)
-    return t;
+    return trivial(t);
   t = (t * 10) + (a % 10);
-  return palindrome(a / 10, t);
+  return reverse_int(a / 10, t);
 }
 
 
-int palindrome(int a) {
-  return palindrome(a, 0);
+int reverse_int(int a) {
+  return reverse_int(a, 0);
 }
 
 int main() {
-  int n = 1;
-  int result = palindrome(n);
+  int n = 111111111;
+  int result = reverse_int(n);
   if (result == n)
     std::cout << "Number "<< n <<" is a palindrome" << std::endl;
   else

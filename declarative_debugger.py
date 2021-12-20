@@ -7,7 +7,9 @@ import gdb # type: ignore
 from rich.tree import Tree
 from rich import print as print_tree
 from simple_term_menu import TerminalMenu # type: ignore
-from typing import List, Callable, Optional, Tuple
+from typing import Union, List, Callable, Optional, Tuple
+
+# Constants
 
 HOST = 'localhost'
 PORT = 50007
@@ -35,17 +37,18 @@ class DebuggingSession:
 
 class Node:
     def __init__(self,
-                 frame: gdb.Frame,
+                 function_name: str,
+                 frame: Optional[gdb.Frame] = None,
                  arguments: Optional[List[gdb.Symbol]] = None,
                  global_variables: Optional[List[gdb.Symbol]] = None,
                  object_state: Optional[gdb.Symbol] = None,
                  position: List[int] = []) -> None:
         self.frame = frame
-        self.name = frame.name() if isinstance(frame, gdb.Frame) else frame
+        self.function_name = function_name
         self.weight = 0
         self.arguments_on_entry = arguments
         self.arguments_on_entry_tree: Optional[ComparableTree] = None
-        if arguments:
+        if self.arguments_on_entry:
             args_tree = ComparableTree("args on entry")
             assert arguments is not None
             for arg in self.arguments_on_entry:
@@ -67,20 +70,20 @@ class Node:
         self.arguments_when_returning: List[gdb.Symbol] = []
         self.arguments_when_returning_tree: Optional[ComparableTree] = None
         self.global_variables_on_entry = global_variables
-        self.global_variables_when_returning: List[gdb.Symbol] = []
+        self.global_variables_when_returning: Optional[List[gdb.Symbol]] = []
         self.object_state_on_entry = object_state
         self.object_state_when_returning = None
         self.return_value: Optional[gdb.Value] = None
         self.return_value_tree: Optional[ComparableTree] = None
         self.children: List[Node] = []
-        self.iscorrect: Answer = Answer.IDK
+        self.iscorrect: Correctness = Correctness.IDK
         self.finished: bool = False
         self.position: List[int] = position
         self.saving_br_number: int = 0
 
     def deepcopy(self, node):
         self.frame = None
-        self.name = node.name
+        self.function_name = node.function_name
         self.weight = node.weight
         self.arguments_on_entry = node.arguments_on_entry
         self.arguments_on_entry_tree = node.arguments_on_entry_tree
@@ -102,7 +105,7 @@ class Node:
                  get_children: bool = True,
                  get_weight: bool = True,
                  get_correctness: bool = True) -> ComparableTree:
-        tree = ComparableTree(self.name)
+        tree = ComparableTree(self.function_name)
         if get_correctness:
             correct_tree = ComparableTree("correctness")
             correct_tree.add(str(self.iscorrect))
@@ -186,17 +189,17 @@ class SetFinalBreak(gdb.Breakpoint):
 class SetSuspectBreak(gdb.Breakpoint):
     def __init__(self, function):
         gdb.Breakpoint.__init__(self, function)
-        self.commands = ("add-node-to-session\n")
+        self.commands = ("add-node-to-session " + function + "\n")
         self.silent = True
 
     def stop(self):
-        return True  # stop the execution at this point
+        return True  # do not stop the execution at this point
 
 class SetReferenceBreak(gdb.Breakpoint):
     def __init__(self, function):
         gdb.Breakpoint.__init__(self, function)
-        self.commands = ("add-node-to-correct-list\n")
-        # self.silent = True
+        self.commands = ("add-node-to-correct-list " + function + "\n")
+        self.silent = True
 
     def stop(self):
         return True  # stop the execution at this point
@@ -262,7 +265,8 @@ class CommandAddNodeToSession(gdb.Command):
     def invoke(self, arg, from_tty):
         # Variable: Symbol.is_argument
         arguments = [symbol for symbol in gdb.selected_frame().block() if symbol.is_argument]
-        my_node = Node(gdb.selected_frame(), arguments)
+        function_name = arg
+        my_node = Node(function_name, gdb.selected_frame(), arguments)
         if my_debugging_session.node is None:
             # First node
             my_debugging_session.node = my_node
@@ -287,7 +291,8 @@ class CommandAddNodeToCorrectList(gdb.Command):
         # Variable: Symbol.is_argument
         arguments = [symbol for symbol in gdb.selected_frame().block()
                      if symbol.is_argument]
-        my_node = Node(gdb.selected_frame(), arguments)
+        function_name = arg
+        my_node = Node(function_name, gdb.selected_frame(), arguments)
         pending_correct_nodes.append(my_node)
         position = len(pending_correct_nodes) - 1
         my_finish_br = MyReferenceFinishBreakpoint(position)
@@ -347,6 +352,11 @@ class StartDeclarativeDebuggingSession(gdb.Command):
         elif can_start_building_tree():
             print("Building tree")
             if build_tree():
+                global my_debugging_session
+                tree_transformations = [tree_compression]
+                # tree_transformations = []
+                for tree_transformation in tree_transformations:
+                    apply_tree_transformations(my_debugging_session.node, tree_transformation)
                 return ask_questions()
             return False
         else:
@@ -363,7 +373,7 @@ class TilTheEnd(gdb.Command):
 
     def invoke(self, arg, from_tty):
         initial_br_number = len([breakpoint for breakpoint in gdb.breakpoints()
-                                 if breakpoint.commands == "add-node-to-correct-list\n"])
+                                 if breakpoint.commands.startswith("add-node-to-correct-list")])
         # Reaching first correct function, which is going to create a finish breakpoint
         total_br_number = len([breakpoint for breakpoint in gdb.breakpoints()])
         while (total_br_number == initial_br_number):
@@ -371,7 +381,7 @@ class TilTheEnd(gdb.Command):
             total_br_number = len([breakpoint for breakpoint in gdb.breakpoints()])
         # The sum of hit_count of all correct nodes should be greater than 0
         assert reduce(lambda x, y: x + y, [breakpoint.hit_count for breakpoint in gdb.breakpoints()
-                                           if breakpoint.commands == "add-node-to-correct-list\n"]) > 0
+                                           if breakpoint.commands.startswith("add-node-to-correct-list")]) > 0
         # assert False
         while (gdb.selected_inferior().pid != 0):
             gdb.execute("c")
@@ -443,6 +453,7 @@ class MyFinishBreakpoint(gdb.FinishBreakpoint):
         super(MyFinishBreakpoint, self).__init__()
         self.position = position
         self.commands = ("save-returning-node")
+        self.silent = True
 
     def stop(self):
         global my_debugging_session
@@ -455,6 +466,7 @@ class MyReferenceFinishBreakpoint(gdb.FinishBreakpoint):
         super(MyReferenceFinishBreakpoint, self).__init__()
         self.position = position
         self.commands = ("save-returning-correct-node")
+        self.silent = True
 
     def stop(self):
         global pending_correct_nodes
@@ -472,26 +484,29 @@ def general_debugging_algorithm(marked_execution_tree: Optional[Node],
                                                     List[int]],
                                                    Tuple[Node, bool, List[int]]]) -> Optional[Node]:
     while (marked_execution_tree is not None
-           and not (marked_execution_tree.iscorrect == Answer.NO
+           and not (marked_execution_tree.iscorrect == Correctness.NO
                     and len(marked_execution_tree.children) == 0)):
-        assert marked_execution_tree.iscorrect == Answer.NO
+        assert marked_execution_tree.iscorrect == Correctness.NO
         selected_node, found, position = select_node(marked_execution_tree, strategy)
         assert found
         assert selected_node.weight > 0
-        answer = ask_about_node(selected_node)
+        answer = ask_about_node_with_extra_functionality(selected_node)
+        if answer == ExtraFunctionality.CHANGE_STRATEGY:
+            strategy = strategies_dict[choose_strategy()]
+            continue
         selected_node.iscorrect = answer
-        name = selected_node.name
+        function_name = selected_node.function_name
         node_tree = selected_node.get_tree(get_children=False,
                                            get_weight=False,
                                            get_correctness=False)
-        if answer == Answer.NO:
+        if answer == Correctness.NO:
             marked_execution_tree = selected_node
-        elif answer in [Answer.YES, Answer.IDK, Answer.TRUSTED]:
+        elif answer in [Correctness.YES, Correctness.IDK, Correctness.TRUSTED]:
             # Remove the node and remove the weight from all its parents
             update_nodes_weight(marked_execution_tree, position,
                                 - get_node_from_position(marked_execution_tree, position).weight)
             remove_node_from_tree(marked_execution_tree, position)
-        if answer == Answer.YES:
+        if answer == Correctness.YES:
             # Remove nodes with the same node_tree and remove the weight from all its parents
             found = True
             while True:
@@ -506,11 +521,11 @@ def general_debugging_algorithm(marked_execution_tree: Optional[Node],
                 if deleted_tree:
                     marked_execution_tree = None
                     break
-        elif answer == Answer.TRUSTED:
+        elif answer == Correctness.TRUSTED:
             # Remove nodes with the same name and remove the weight from all its parents
             found = True
             while True:
-                _, found, position = find_node_with_name(marked_execution_tree, [], name)
+                _, found, position = find_node_with_name(marked_execution_tree, [], function_name)
                 if found is False:
                     break
                 update_nodes_weight(marked_execution_tree,
@@ -557,7 +572,7 @@ def get_parent_frames(node: Node) -> List[gdb.Frame]:
         aux_frame = aux_frame.older()
     return parents
 
-class Answer(Enum):
+class Correctness(Enum):
     YES = 1
     NO = 2
     IDK = 3
@@ -577,6 +592,10 @@ class Answer(Enum):
         if self.value == 4:
             return "trusted"
 
+class ExtraFunctionality(Enum):
+    UNDO = 5
+    CHANGE_STRATEGY = 6
+
 def top_down_strategy(marked_execution_tree: Node,
                       position: List[int]) -> Tuple[Optional[Node], bool, List[int]]:
     """Search for closest undefined node.
@@ -585,7 +604,7 @@ def top_down_strategy(marked_execution_tree: Node,
     Node
     Position: list of int
     """
-    if marked_execution_tree.iscorrect == Answer.IDK:
+    if marked_execution_tree.iscorrect == Correctness.IDK:
         return marked_execution_tree, True, position
     for index, child in enumerate(marked_execution_tree.children):
         tmp_marked_execution_tree, found, tmp_position = top_down_strategy(child, position)
@@ -594,45 +613,6 @@ def top_down_strategy(marked_execution_tree: Node,
             return tmp_marked_execution_tree, found, tmp_position
     return None, False, []
 
-def find_node_with_node_tree(marked_execution_tree: Node,
-                             position: List[int],
-                             node_tree: ComparableTree) -> Tuple[Optional[Node], bool, List[int]]:
-    """Search for closest node with frame.
-    Returns:
-    Found: bool
-    Node
-    Position: list of int
-    """
-    if (marked_execution_tree.get_tree(get_children=False,
-                                       get_weight=False,
-                                       get_correctness=False) == node_tree):
-        return marked_execution_tree, True, position
-    for index, child in enumerate(marked_execution_tree.children):
-        tmp_marked_execution_tree, found, tmp_position = find_node_with_node_tree(child,
-                                                                                  position,
-                                                                                  node_tree)
-        if found:
-            tmp_position.insert(0, index)
-            return tmp_marked_execution_tree, found, tmp_position
-    return None, False, []
-
-def find_node_with_name(marked_execution_tree: Node,
-                        position: List[int],
-                        name: str) -> Tuple[Optional[Node], bool, List[int]]:
-    """Search for closest node with name.
-    Returns:
-    Found: bool
-    Node
-    Position: list of int
-    """
-    if marked_execution_tree.name == name:
-        return marked_execution_tree, True, position
-    for index, child in enumerate(marked_execution_tree.children):
-        tmp_marked_execution_tree, found, tmp_position = find_node_with_name(child, position, name)
-        if found:
-            tmp_position.insert(0, index)
-            return tmp_marked_execution_tree, found, tmp_position
-    return None, False, []
 
 def divide_and_query_Hirunkitti_strategy(marked_execution_tree: Node,
                                          position: List[int]) -> Tuple[Node, bool, List[int]]:
@@ -663,19 +643,86 @@ def heaviest_first_strategy(marked_execution_tree: Node,
             position = [index]
     return choosen_node, True, position
 
-def ask_about_node(node: Node) -> Answer:
+strategies_dict = {
+    "Top-down": top_down_strategy,
+    "Divide and Query (Hirunkitti)": divide_and_query_Hirunkitti_strategy,
+    "Heaviest first": heaviest_first_strategy
+}
+
+strategy_options = ["Top-down",
+                    "Divide and Query (Hirunkitti)",
+                    "Heaviest first"]
+
+def find_node_with_node_tree(marked_execution_tree: Node,
+                             position: List[int],
+                             node_tree: ComparableTree) -> Tuple[Optional[Node], bool, List[int]]:
+    """Search for closest node with frame.
+    Returns:
+    Found: bool
+    Node
+    Position: list of int
+    """
+    if (marked_execution_tree.get_tree(get_children=False,
+                                       get_weight=False,
+                                       get_correctness=False) == node_tree):
+        return marked_execution_tree, True, position
+    for index, child in enumerate(marked_execution_tree.children):
+        tmp_marked_execution_tree, found, tmp_position = find_node_with_node_tree(child,
+                                                                                  position,
+                                                                                  node_tree)
+        if found:
+            tmp_position.insert(0, index)
+            return tmp_marked_execution_tree, found, tmp_position
+    return None, False, []
+
+def find_node_with_name(marked_execution_tree: Node,
+                        position: List[int],
+                        function_name: str) -> Tuple[Optional[Node], bool, List[int]]:
+    """Search for closest node with name.
+    Returns:
+    Found: bool
+    Node
+    Position: list of int
+    """
+    if marked_execution_tree.function_name == function_name:
+        return marked_execution_tree, True, position
+    for index, child in enumerate(marked_execution_tree.children):
+        tmp_marked_execution_tree, found, tmp_position = find_node_with_name(child, position, function_name)
+        if found:
+            tmp_position.insert(0, index)
+            return tmp_marked_execution_tree, found, tmp_position
+    return None, False, []
+
+def ask_about_node_with_extra_functionality(node: Node) -> Union[Correctness, ExtraFunctionality]:
     print("Is the following node correct?")
     print_tree(node.get_tree(get_children=False))
-    options = ["Yes", "No", "I don't know", "Trusted"]
-    terminal_menu = TerminalMenu(options)
+    correctness_options = ["Yes", "No", "I don't know", "Trusted"]
+    total_options = correctness_options + ["Undo", "Change strategy"]
+    terminal_menu = TerminalMenu(total_options)
     menu_entry_index = terminal_menu.show()
     answers_dict = {
-        "Yes": Answer.YES,
-        "No": Answer.NO,
-        "I don't know": Answer.IDK,
-        "Trusted": Answer.TRUSTED
+        "Yes": Correctness.YES,
+        "No": Correctness.NO,
+        "I don't know": Correctness.IDK,
+        "Trusted": Correctness.TRUSTED,
+        "Undo": ExtraFunctionality.UNDO,
+        "Change strategy": ExtraFunctionality.CHANGE_STRATEGY
     }
-    return answers_dict[options[menu_entry_index]]
+    return answers_dict[total_options[menu_entry_index]]
+
+def ask_about_node(node: Node) -> Union[Correctness, ExtraFunctionality]:
+    print("Is the following node correct?")
+    print_tree(node.get_tree(get_children=False))
+    correctness_options = ["Yes", "No", "I don't know", "Trusted"]
+    terminal_menu = TerminalMenu(correctness_options)
+    menu_entry_index = terminal_menu.show()
+    answers_dict = {
+        "Yes": Correctness.YES,
+        "No": Correctness.NO,
+        "I don't know": Correctness.IDK,
+        "Trusted": Correctness.TRUSTED
+    }
+    return answers_dict[correctness_options[menu_entry_index]]
 
 def get_node_from_position(marked_execution_tree: Node,
                            position: List[int]) -> Node:
@@ -701,8 +748,9 @@ def get_unfinished_node_from_frame(marked_execution_tree: Node,
     assert len(marked_execution_tree.children) > 0
     return get_unfinished_node_from_frame(marked_execution_tree.children[-1], frame)
 
-def get_pointer_or_ref(arguments: List[gdb.Symbol], frame: gdb.Frame) -> List[gdb.Symbol]:
-    assert len(arguments) > 0
+def get_pointer_or_ref(arguments: Optional[List[gdb.Symbol]], frame: gdb.Frame) -> List[gdb.Symbol]:
+    if arguments is None:
+        return []
     return [argument for argument in arguments
             if argument.value(frame).type.code in [gdb.TYPE_CODE_PTR, gdb.TYPE_CODE_REF]]
 
@@ -711,16 +759,19 @@ def can_start_asking_questions() -> bool:
         return True
     return False
 
+def get_suspect_plus_final_br_number():
+    return len([breakpoint for breakpoint in gdb.breakpoints()
+                if (breakpoint.commands == "finish-debugging-session\n"
+                    or breakpoint.commands.startswith("add-node-to-session "))])
+
 def can_start_building_tree() -> bool:
     """Returns true if:
     - there are suspect breakpoints
     - and if total br is equal to suspect and final br.
     False otherwise"""
     suspect_br_number = len([breakpoint for breakpoint in gdb.breakpoints()
-                             if breakpoint.commands == "add-node-to-session\n"])
-    suspect_plus_final_br_number = len([breakpoint for breakpoint in gdb.breakpoints()
-                                        if breakpoint.commands in ["add-node-to-session\n",
-                                                                   "finish-debugging-session\n"]])
+                             if breakpoint.commands.startswith("add-node-to-session ")])
+    suspect_plus_final_br_number = get_suspect_plus_final_br_number()
     total_br_number = len([breakpoint for breakpoint in gdb.breakpoints()])
     if suspect_br_number > 0:
         if suspect_plus_final_br_number == total_br_number:
@@ -732,9 +783,7 @@ def can_start_building_tree() -> bool:
 
 def build_tree() -> bool:
     """Returns True if tree was built successfully. False otherwise"""
-    initial_br_number = len([breakpoint for breakpoint in gdb.breakpoints()
-                             if breakpoint.commands in ["add-node-to-session\n",
-                                                        "finish-debugging-session\n"]])
+    initial_br_number = get_suspect_plus_final_br_number()
     # Reaching first suspect function, which is going to create a finish breakpoint
     total_br_number = len([breakpoint for breakpoint in gdb.breakpoints()])
     while (total_br_number == initial_br_number):
@@ -742,7 +791,7 @@ def build_tree() -> bool:
         total_br_number = len([breakpoint for breakpoint in gdb.breakpoints()])
     # The sum of hit_count of all suspect nodes should be greater than 0
     assert reduce(lambda x, y: x + y, [breakpoint.hit_count for breakpoint in gdb.breakpoints()
-                                       if breakpoint.commands == "add-node-to-session\n"]) > 0
+                                       if breakpoint.commands.startswith("add-node-to-session ")]) > 0
     # First finish breakpoint reached, reaching final state
     # If a final-point has already been reached, exit with error
     is_hit, breakpoint = hit_final_breakpoint()
@@ -764,33 +813,27 @@ def hit_final_breakpoint():
             return True, breakpoint
     return False, None
 
+def choose_strategy():
+    print("Please choose debugging strategy")
+    terminal_menu = TerminalMenu(strategy_options)
+    menu_entry_index = terminal_menu.show()
+    print(f"You have selected {strategy_options[menu_entry_index]}!")
+    return strategy_options[menu_entry_index]
 
 def ask_questions() -> bool:
     """Returns True if buggy node is found. False otherwise"""
+    strategy = strategies_dict[choose_strategy()]
     assert my_debugging_session.is_tree_built
-    print("Debugging tree is built. Please choose debugging strategy")
-    options = ["Top-down",
-               "Divide and Query (Hirunkitti)",
-               "Heaviest first"]
-    terminal_menu = TerminalMenu(options)
-    menu_entry_index = terminal_menu.show()
-    strategies_dict = {
-        "Top-down": top_down_strategy,
-        "Divide and Query (Hirunkitti)": divide_and_query_Hirunkitti_strategy,
-        "Heaviest first": heaviest_first_strategy
-    }
-    print(f"You have selected {options[menu_entry_index]}!")
     marked_execution_tree = Node("frame")
     marked_execution_tree.deepcopy(my_debugging_session.node)
     answer = ask_about_node(marked_execution_tree)
-    if answer in [Answer.YES, Answer.TRUSTED]:
+    if answer in [Correctness.YES, Correctness.TRUSTED]:
         print("No buggy node found")
         return False
-    if answer is Answer.IDK:
+    if answer is Correctness.IDK:
         print("If you don't know, I cannot help you")
         return False
-    marked_execution_tree.evaluate_answer(Answer.NO)
-    strategy = strategies_dict[options[menu_entry_index]]
+    marked_execution_tree.evaluate_answer(Correctness.NO)
     buggy_node = general_debugging_algorithm(marked_execution_tree, strategy)
     if buggy_node is None:
         print("No buggy node found")
@@ -798,6 +841,53 @@ def ask_questions() -> bool:
     print("Buggy node found")
     print_tree(buggy_node.get_tree())
     return True
+
+def can_node_be_compressed(marked_execution_tree: Node) -> Tuple[bool, int]:
+    """Searches for the longest compression possible. Returns:
+    - bool: True if can be compressed. False otherwise
+    - int: If it can be compressed, number of nodes to compress"""
+    if len(marked_execution_tree.children) != 1:
+        return False, 0
+    if marked_execution_tree.children[0].function_name != marked_execution_tree.function_name:
+        return False, 0
+    _, downstream_length = can_node_be_compressed(marked_execution_tree.children[0])
+    return True, downstream_length + 1
+
+def compress_node(marked_execution_tree: Node, nodes_to_compress: int) -> Node:
+    head_node = marked_execution_tree
+    tail_node = marked_execution_tree
+    for _ in range(nodes_to_compress):
+        tail_node = tail_node.children[0]
+    compressed_node = tail_node
+    compressed_node.arguments_on_entry_tree = head_node.arguments_on_entry_tree
+    compressed_node.return_value_tree = head_node.return_value_tree
+    compressed_node.function_name = head_node.function_name + "^" + str(nodes_to_compress + 1)
+    return compressed_node
+
+def compress_node_in_position_and_update_weight(marked_execution_tree: Node,
+                                                position: List[int],
+                                                nodes_to_compress: int) -> None:
+    get_node_from_position(
+        marked_execution_tree,
+        position).deepcopy(
+            compress_node(
+                get_node_from_position(marked_execution_tree,
+                                       position), nodes_to_compress))
+    update_nodes_weight(marked_execution_tree, position, - nodes_to_compress)
+    get_node_from_position(marked_execution_tree, position).weight += nodes_to_compress
+
+def tree_compression(marked_execution_tree: Node, position: List[int]) -> None:
+    compress, nodes_to_compress = can_node_be_compressed(marked_execution_tree)
+    if compress:
+        compress_node_in_position_and_update_weight(marked_execution_tree, position, nodes_to_compress)
+    for index, child_node in enumerate(marked_execution_tree.children):
+        compress, nodes_to_compress = can_node_be_compressed(child_node)
+        if compress:
+            position.append(index)
+            compress_node_in_position_and_update_weight(marked_execution_tree, position, nodes_to_compress)
+
+def apply_tree_transformations(marked_execution_tree: Node, tree_transformation):
+    tree_transformation(marked_execution_tree, [])
 
 def cut_chain(chain, i, j):
     assert len(chain) >= 2
