@@ -1,8 +1,8 @@
 [tool.poetry]
-name = "poetry-demo"
+name = "declarative-debugger-for-cpp"
 version = "0.1.0"
 description = ""
-authors = ["Sébastien Eustace <sebastien@eustace.io>"]
+authors = ["Roland Coeurjoly <rolandcoeurjoly@gmail.com>"]
 
 [tool.poetry.dependencies]
 python = ">=3.7,<4.0"

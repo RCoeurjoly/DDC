@@ -20,7 +20,7 @@
           [ pkgs.poetry2nix.defaultPoetryOverrides customOverrides ];
       };
 
-      packageName = "declarative-debugger-for-Cpp";
+      packageName = "declarative-debugger-for-cpp";
     in {
       packages.x86_64-linux.${packageName} = app;
 
