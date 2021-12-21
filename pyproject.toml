@@ -10,6 +10,7 @@ simple-term-menu = "^1.4.0"
 networkx = "^2.6.3"
 rich = "^10.16.1"
 setuptools-scm = "^6.3.2"
+tomli = "^2.0.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^3.4"
