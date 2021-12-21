@@ -57,12 +57,6 @@
           installPhase = "mkdir -p $out/tests; install -t $out/tests palindrome";
         };
 
-      # devShell.x86_64-linux = pkgs.poetry2nix.mkPoetryEnv {
-      #   # inputsFrom = builtins.attrValues self.packages.x86_64-linux;
-      #   projectDir = ./.;
-      #   # buildInputs = with pkgs; [ gdb rr poetry python3Packages.pylint python3Packages.autopep8 ];
-      # };
-
       devShell.x86_64-linux = pkgs.mkShell {
         inputsFrom = builtins.attrValues self.packages.x86_64-linux;
         buildInputs = with pkgs; [ python38 gdb rr poetry python38Packages.pylint python38Packages.autopep8 ];
