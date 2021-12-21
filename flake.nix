@@ -46,17 +46,6 @@
           installPhase = "mkdir -p $out/tests; install -t $out/tests test_quicksort";
         };
 
-      packages.x86_64-linux.vector_function =
-        # Notice the reference to nixpkgs here.
-        with import nixpkgs { system = "x86_64-linux"; };
-        stdenv.mkDerivation {
-          name = "vector_function";
-          src = self;
-          dontStrip = true;
-          buildPhase = "gcc -O0 -g -o vector_function ./vector_function.cpp -lstdc++";
-          installPhase = "mkdir -p $out/tests; install -t $out/tests vector_function";
-        };
-
       packages.x86_64-linux.palindrome =
         # Notice the reference to nixpkgs here.
         with import nixpkgs { system = "x86_64-linux"; };
