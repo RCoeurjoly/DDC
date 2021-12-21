@@ -77,7 +77,7 @@
 
       devShell.x86_64-linux = pkgs.mkShell {
         inputsFrom = builtins.attrValues self.packages.x86_64-linux;
-        buildInputs = with pkgs; [ gdb rr poetry python3Packages.pylint python3Packages.autopep8 ];
+        buildInputs = with pkgs; [ python38 gdb rr poetry python38Packages.pylint python38Packages.autopep8 ];
       };
 
       checks.x86_64-linux = {
@@ -86,7 +86,7 @@
         test = pkgs.stdenv.mkDerivation {
           name = "DDC-test";
 
-          buildInputs = with pkgs; [ python3Packages.pylint ];
+          buildInputs = with pkgs; [ python38Packages.pylint ];
 
           unpackPhase = "true";
 
