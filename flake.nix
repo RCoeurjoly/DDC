@@ -21,7 +21,7 @@
       };
 
       # DON'T FORGET TO PUT YOUR PACKAGE NAME HERE, REMOVING `throw`
-      packageName = "poetry-test";
+      packageName = "declarative-debugger-for-Cpp";
     in {
       packages.x86_64-linux.${packageName} = app;
 
