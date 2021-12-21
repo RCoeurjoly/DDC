@@ -12,6 +12,31 @@
 
       customOverrides = self: super: {
         # Overrides go here
+        tomli = super.tomli.overridePythonAttrs (
+          old: {
+            buildInputs = (old.buildInputs or [ ]) ++ [ self.flit-core ];
+          }
+        );
+
+        typing-extensions = super.typing-extensions.overridePythonAttrs (
+          old: {
+            buildInputs = (old.buildInputs or [ ]) ++ [ self.flit-core ];
+          }
+        );
+
+        platformdirs = super.platformdirs.overridePythonAttrs (
+          old: {
+            postPatch = ''
+          substituteInPlace setup.py --replace 'setup()' 'setup(version="${old.version}")'
+        '';
+          }
+        );
+
+        black = super.black.overridePythonAttrs (
+          old: {
+            buildInputs = (old.buildInputs or [ ]) ++ [ self.flit-core self.platformdirs ];
+          }
+        );
       };
 
       app = pkgs.poetry2nix.mkPoetryApplication {
