@@ -13,7 +13,6 @@ setuptools-scm = "^6.3.2"
 tomli = "^2.0.0"
 
 [tool.poetry.dev-dependencies]
-pytest = "^3.4"
 
 [build-system]
 requires = ["poetry>=0.12"]
