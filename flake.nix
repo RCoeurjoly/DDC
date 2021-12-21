@@ -16,6 +16,7 @@
 
       app = pkgs.poetry2nix.mkPoetryApplication {
         projectDir = ./.;
+        python = pkgs.python38;
         overrides =
           [ pkgs.poetry2nix.defaultPoetryOverrides customOverrides ];
       };
