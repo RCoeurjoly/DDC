@@ -6,7 +6,6 @@ authors = ["Sébastien Eustace <sebastien@eustace.io>"]
 
 [tool.poetry.dependencies]
 python = ">=3.7,<4.0"
-rich = "^10.7.0"
 simple-term-menu = "^1.4.0"
 networkx = "^2.6.3"
 mypy = "^0.920"
