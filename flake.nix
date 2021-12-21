@@ -35,11 +35,11 @@
           installPhase = "mkdir -p $out/bin; install -t $out/bin quicksort";
         };
 
-      packages.x86_64-linux.test =
+      packages.x86_64-linux.test_quicksort =
         # Notice the reference to nixpkgs here.
         with import nixpkgs { system = "x86_64-linux"; };
         stdenv.mkDerivation {
-          name = "quicksort";
+          name = "test_quicksort";
           src = self;
           dontStrip = true;
           buildPhase = "gcc -I./ -O0 -g -o test_quicksort ./test_quicksort.cpp -lstdc++";
