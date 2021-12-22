@@ -15,12 +15,13 @@ def can_node_be_compressed(marked_execution_tree: 'Node') -> Tuple[bool, int]:
     - int: If it can be compressed, number of nodes to compress"""
     Requires(Acc(marked_execution_tree.children, 1/2))
     Requires(Acc(list_pred(marked_execution_tree.children)))
-    Requires(Forall(marked_execution_tree.children, lambda node: Acc(node.function_name, 1/2)))
+    Requires(Forall(int, lambda i: Implies(i >= 0 and i < len(marked_execution_tree.children), Acc(marked_execution_tree.children[i].function_name))))
     Requires(Acc(marked_execution_tree.function_name, 1/2))
-    Ensures(Implies(Result()[1] > 0, Result()[0] is True))
+    # Ensures(Implies(Result()[1] == 0, Result()[0] is False))
+    # Ensures(Implies(Result()[1] > 0, Result()[0] is True))
     if len(marked_execution_tree.children) != 1:
         return False, 0
     if marked_execution_tree.children[0].function_name != marked_execution_tree.function_name:
         return False, 0
-    # _, downstream_length = can_node_be_compressed(marked_execution_tree.children[0])
-    # return True, downstream_length + 1
+    _, downstream_length = can_node_be_compressed(marked_execution_tree.children[0])
+    return True, downstream_length + 1

@@ -3,3 +3,4 @@ gdb_record*
 *out*
 *.log
 core*
+tmp/
