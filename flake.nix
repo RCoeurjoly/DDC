@@ -2,7 +2,7 @@
   description = "Declarative debugger for C++";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs";
+    nixpkgs.url = "github:RCoeurjoly/nixpkgs";
     flake-utils.url = "github:numtide/flake-utils";
   };
 
@@ -85,7 +85,7 @@
 
       devShell.x86_64-linux = pkgs.mkShell {
         inputsFrom = builtins.attrValues self.packages.x86_64-linux;
-        buildInputs = with pkgs; [ python38 gdb rr z3 poetry python38Packages.pylint python38Packages.autopep8 ];
+        buildInputs = with pkgs; [ python38 gdb rr z3 boogie poetry python38Packages.pylint python38Packages.autopep8 ];
       };
 
       checks.x86_64-linux = {
