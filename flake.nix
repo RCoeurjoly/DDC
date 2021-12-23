@@ -2,7 +2,8 @@
   description = "Declarative debugger for C++";
 
   inputs = {
-    nixpkgs.url = "github:RCoeurjoly/nixpkgs";
+    # nixpkgs.url = "github:RCoeurjoly/nixpkgs";
+    nixpkgs.url = "github:NixOS/nixpkgs";
     flake-utils.url = "github:numtide/flake-utils";
   };
 
