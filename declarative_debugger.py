@@ -353,7 +353,7 @@ class StartDeclarativeDebuggingSession(gdb.Command):
             print("Building tree")
             if build_tree():
                 global my_debugging_session
-                tree_transformations = [tree_compression]
+                tree_transformations = [simplified_tree_compression]
                 # tree_transformations = []
                 for tree_transformation in tree_transformations:
                     apply_tree_transformations(my_debugging_session.node, tree_transformation)
@@ -876,7 +876,7 @@ def compress_node_in_position_and_update_weight(marked_execution_tree: Node,
     update_nodes_weight(marked_execution_tree, position, - nodes_to_compress)
     get_node_from_position(marked_execution_tree, position).weight += nodes_to_compress
 
-def tree_compression(marked_execution_tree: Node, position: List[int]) -> None:
+def simplified_tree_compression(marked_execution_tree: Node, position: List[int]) -> None:
     compress, nodes_to_compress = can_node_be_compressed(marked_execution_tree)
     if compress:
         compress_node_in_position_and_update_weight(marked_execution_tree, position, nodes_to_compress)
