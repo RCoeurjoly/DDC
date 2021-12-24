@@ -1,9 +1,10 @@
 from typing import Optional, List, Tuple
 from nagini_contracts.contracts import *
 
+@Pure
 def trivial(a: int) -> int:
     Ensures(Result() == 0)
-    return 42 - 42
+    return 0
 
 # class Node:
 #     def __init__(self, function_name: str, children:List['Node']) -> None:
