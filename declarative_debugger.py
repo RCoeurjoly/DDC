@@ -697,7 +697,9 @@ def ask_about_node_with_extra_functionality(node: Node) -> Union[Correctness, Ex
     print("Is the following node correct?")
     print_tree(node.get_tree(get_children=False))
     correctness_options = ["Yes", "No", "I don't know", "Trusted"]
-    total_options = correctness_options + ["Undo", "Change strategy"]
+    total_options = correctness_options + [
+        # "Undo",
+        "Change strategy"]
     terminal_menu = TerminalMenu(total_options)
     menu_entry_index = terminal_menu.show()
     answers_dict = {
@@ -705,7 +707,7 @@ def ask_about_node_with_extra_functionality(node: Node) -> Union[Correctness, Ex
         "No": Correctness.NO,
         "I don't know": Correctness.IDK,
         "Trusted": Correctness.TRUSTED,
-        "Undo": ExtraFunctionality.UNDO,
+        # "Undo": ExtraFunctionality.UNDO,
         "Change strategy": ExtraFunctionality.CHANGE_STRATEGY
     }
     return answers_dict[total_options[menu_entry_index]]
