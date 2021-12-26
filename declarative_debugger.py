@@ -168,7 +168,7 @@ class CommandFinishSession(gdb.Command):
 
     def __init__(self):
         super(CommandFinishSession, self).__init__(
-            "finish-debugging-session", gdb.COMMAND_USER)
+            "finish-debugging-session", gdb.COMMAND_USER, gdb.COMPLETE_LOCATION)
 
     def invoke(self, arg, from_tty):
         global my_debugging_session
@@ -305,7 +305,7 @@ class CommandSuspectFunction(gdb.Command):
 
     def __init__(self):
         super(CommandSuspectFunction, self).__init__(
-            "suspect-function", gdb.COMMAND_USER)
+            "suspect-function", gdb.COMMAND_USER, gdb.COMPLETE_LOCATION)
 
     def invoke(self, arg, from_tty):
         SetSuspectBreak(arg)
@@ -318,7 +318,7 @@ class CommandSaveCorrectFunction(gdb.Command):
 
     def __init__(self):
         super(CommandSaveCorrectFunction, self).__init__(
-            "save-correct-function", gdb.COMMAND_USER)
+            "save-correct-function", gdb.COMMAND_USER, gdb.COMPLETE_LOCATION)
 
     def invoke(self, arg, from_tty):
         SetReferenceBreak(arg)
@@ -331,7 +331,7 @@ class CommandFinalBreakpoint(gdb.Command):
 
     def __init__(self):
         super(CommandFinalBreakpoint, self).__init__(
-            "final-point", gdb.COMMAND_USER)
+            "final-point", gdb.COMMAND_USER, gdb.COMPLETE_LOCATION)
 
     def invoke(self, arg, from_tty):
         SetFinalBreak(arg)
