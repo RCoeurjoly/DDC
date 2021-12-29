@@ -13,6 +13,7 @@ setuptools-scm = "^6.3.2"
 packaging = "^21.3"
 tomli = "^2.0.0"
 crosshair-tool = "^0.0.20"
+deal = "^4.19.0"
 
 
 [tool.poetry.dev-dependencies]
