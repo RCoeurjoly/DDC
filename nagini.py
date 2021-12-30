@@ -1,31 +1,26 @@
 from typing import Optional, List, Tuple
-from nagini_contracts.contracts import *
+import deal
 
-@Pure
-def trivial(a: int) -> int:
-    Ensures(Result() == 0)
-    return 0
+# @deal.ensure(lambda left, right, result: result.startswith(left))
+# @deal.ensure(lambda left, right, result: result.endswith(right))
+# @deal.ensure(lambda left, right, result: len(result) == len(left) + len(right))
+# def cat(left: str, right: str) -> str:
+#     return left + right
 
-# class Node:
-#     def __init__(self, function_name: str, children:List['Node']) -> None:
-#         self.function_name = function_name # type: str
-#         self.children = children # type: List['Node']
-#         Ensures(Acc(self.function_name) and self.function_name is function_name and
-#                 Acc(self.children) and self.children is children)
+class Node:
+    def __init__(self, function_name: str, children:List['Node']) -> None:
+        self.function_name = function_name # type: str
+        self.children = children # type: List['Node']
 
-# @Pure
-# def can_node_be_compressed(marked_execution_tree: 'Node') -> int:
-#     """Searches for the longest compression possible. Returns:
-#     - int: number of nodes that can be compressed. 0 if None"""
-#     Requires(Acc(marked_execution_tree.children))
-#     Requires(Acc(list_pred(marked_execution_tree.children)))
-#     Requires(Forall(int, lambda i: Implies(i >= 0 and i < len(marked_execution_tree.children),
-#                                            Acc(marked_execution_tree.children[i].function_name))))
-#     Requires(Acc(marked_execution_tree.function_name))
-#     Ensures(Implies(len(marked_execution_tree.children) != 1, Result() == 0))
-#     Ensures(Result() == 0)
-#     if len(marked_execution_tree.children) != 1:
-#         return 1
-#     if marked_execution_tree.children[0].function_name != marked_execution_tree.function_name:
-#         return 0
-#     return can_node_be_compressed(marked_execution_tree.children[0]) + 1
+
+@deal.post(lambda result: result >= 0)
+#@deal.post(lambda result: result >= 0)
+@deal.pure
+def can_node_be_compressed(marked_execution_tree: 'Node') -> int:
+    """Searches for the longest compression possible. Returns:
+    - int: number of nodes that can be compressed. 0 if None"""
+    if len(marked_execution_tree.children) != 1:
+        return 0
+    if marked_execution_tree.children[0].function_name != marked_execution_tree.function_name:
+        return 0
+    return can_node_be_compressed(marked_execution_tree.children[0]) + 1

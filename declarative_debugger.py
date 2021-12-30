@@ -168,7 +168,7 @@ class CommandFinishSession(gdb.Command):
 
     def __init__(self):
         super(CommandFinishSession, self).__init__(
-            "finish-debugging-session", gdb.COMMAND_USER, gdb.COMPLETE_LOCATION)
+            "finish-debugging-session", gdb.COMMAND_USER)
 
     def invoke(self, arg, from_tty):
         global MY_DEBUGGING_SESSION
@@ -429,7 +429,8 @@ class PrintNodes(gdb.Command):
     """Print nodes of declarative debugging session"""
 
     def __init__(self):
-        super(PrintNodes, self).__init__("print-nodes", gdb.COMMAND_USER)
+        super(PrintNodes, self).__init__(
+            "print-nodes", gdb.COMMAND_USER)
 
     def invoke(self, arg, from_tty):
         print_tree(MY_DEBUGGING_SESSION.node.get_tree())
