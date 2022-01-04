@@ -3,11 +3,12 @@ import socket
 import pickle
 from enum import Enum
 from functools import reduce
+from typing import Union, List, Callable, Optional, Tuple
 import gdb # type: ignore
 from rich.tree import Tree
 from rich import print as print_tree
 from simple_term_menu import TerminalMenu # type: ignore
-from typing import Union, List, Callable, Optional, Tuple
+
 
 # Constants
 
@@ -135,8 +136,7 @@ class Node:
     def finish(self,
                arguments: Optional[List[gdb.Symbol]] = None,
                global_variables: Optional[List[gdb.Symbol]] = None,
-               object_state: Optional[gdb.Symbol] = None,
-               return_value: Optional[gdb.Value] = None) -> None:
+               object_state: Optional[gdb.Symbol] = None) -> None:
         assert self.frame.is_valid()
         pointer_or_ref_args = get_pointer_or_ref(arguments, self.frame)
         if arguments and len(arguments) > 0 and len(pointer_or_ref_args) > 0:
@@ -261,6 +261,7 @@ class CommandAddNodeToSession(gdb.Command):
 
     def invoke(self, arg, from_tty):
         # Variable: Symbol.is_argument
+        global MY_DEBUGGING_SESSION
         arguments = [symbol for symbol in gdb.selected_frame().block() if symbol.is_argument]
         function_name = arg
         my_node = Node(function_name, gdb.selected_frame(), arguments)
@@ -272,7 +273,7 @@ class CommandAddNodeToSession(gdb.Command):
             position = add_node_to_tree(MY_DEBUGGING_SESSION.node, my_node, [])
         my_node.position = position
         update_nodes_weight(MY_DEBUGGING_SESSION.node, position, 1)
-        my_finish_br = MyFinishBreakpoint(position)
+        MyFinishBreakpoint(position)
 
 CommandAddNodeToSession()
 
@@ -291,7 +292,7 @@ class CommandAddNodeToCorrectList(gdb.Command):
         my_node = Node(function_name, gdb.selected_frame(), arguments)
         PENDING_CORRECT_NODES.append(my_node)
         position = len(PENDING_CORRECT_NODES) - 1
-        my_finish_br = MyReferenceFinishBreakpoint(position)
+        MyReferenceFinishBreakpoint(position)
 
 CommandAddNodeToCorrectList()
 
