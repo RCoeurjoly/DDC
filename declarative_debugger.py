@@ -426,17 +426,17 @@ class SendCorrectNodes(gdb.Command):
 
 SendCorrectNodes()
 
-class PrintNodes(gdb.Command):
+class PrintTree(gdb.Command):
     """Print nodes of declarative debugging session"""
 
     def __init__(self):
-        super(PrintNodes, self).__init__(
-            "print-nodes", gdb.COMMAND_USER)
+        super(PrintTree, self).__init__(
+            "print-tree", gdb.COMMAND_USER)
 
     def invoke(self, arg, from_tty):
         print_tree(MY_DEBUGGING_SESSION.node.get_tree())
 
-PrintNodes()
+PrintTree()
 
 class MyFinishBreakpoint(gdb.FinishBreakpoint):
     def __init__(self, position):
