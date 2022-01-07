@@ -40,7 +40,7 @@ int partition(std::vector<int> &my_vector, int low, int high)
    my_vector --> vector to be sorted,
    low  --> Starting index,
    high  --> Ending index */
-void quickSort(std::vector<int> &my_vector, int low, int high)
+void quickSort(std::vector<int> &my_vector, int low, int high, std::string gdb_bug="")
 {
   if (low < high)
     {
