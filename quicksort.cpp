@@ -14,7 +14,7 @@ int main()
   //          {1, 5, 7, 8, 10, 9};
   //          {1, 5, 7, 8, 9, 10};
   int n = sizeof(my_vector)/sizeof(my_vector[0]);
-  quickSort(my_vector, 0, n-1, "bug");
+  quickSort(my_vector, 0, n-1);
   printf("Sorted vector: \n");
   print_vector(my_vector);
   return 0;
