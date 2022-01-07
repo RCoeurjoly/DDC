@@ -62,6 +62,17 @@
           installPhase = "mkdir -p $out/bin; install -t $out/bin quicksort";
         };
 
+      packages.x86_64-linux.quicksort_wrong_bt =
+        # Notice the reference to nixpkgs here.
+        with import nixpkgs { system = "x86_64-linux"; };
+        stdenv.mkDerivation {
+          name = "quicksort_wrong_bt";
+          src = self;
+          dontStrip = true;
+          buildPhase = "gcc -I./ -O0 -g -o quicksort_wrong_bt ./quicksort_wrong_bt.cpp -lstdc++";
+          installPhase = "mkdir -p $out/bin; install -t $out/bin quicksort_wrong_bt";
+        };
+
       packages.x86_64-linux.test_quicksort =
         # Notice the reference to nixpkgs here.
         with import nixpkgs { system = "x86_64-linux"; };
