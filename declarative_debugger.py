@@ -9,11 +9,12 @@ from rich.tree import Tree
 from rich import print as print_tree
 from simple_term_menu import TerminalMenu # type: ignore
 
-
 # Constants
 
 HOST = 'localhost'
 PORT = 50007
+
+# Classes
 
 class ComparableTree(Tree):
     def __eq__(self, other: object) -> bool:
@@ -51,23 +52,9 @@ class Node:
         self.arguments_on_entry_tree: Optional[ComparableTree] = None
         if self.arguments_on_entry:
             args_tree = ComparableTree("args on entry")
-            assert arguments is not None
-            for arg in self.arguments_on_entry:
-                arg_tree_name = arg.print_name + " = "
-                if arg.value(self.frame).type.code == gdb.TYPE_CODE_PTR:
-                    arg_tree_name += str(arg.value(self.frame).dereference())
-                # elif arg.value(self.frame).type.code == gdb.TYPE_CODE_REF:
-                #     arg_tree_name += str(arg.value(self.frame).referenced_value())
-                else:
-                    arg_tree_name += str(arg.value(self.frame).format_string(
-                        raw=False,
-                        pretty_arrays=True,
-                        pretty_structs=True,
-                        array_indexes=True,
-                        symbols=True,
-                        deref_refs=True))
-                args_tree.add(arg_tree_name)
-            self.arguments_on_entry_tree = args_tree
+            self.arguments_on_entry_tree = get_tree_from_arguments(args_tree,
+                                                                   arguments,
+                                                                   self.frame)
         self.arguments_when_returning: List[gdb.Symbol] = []
         self.arguments_when_returning_tree: Optional[ComparableTree] = None
         self.global_variables_on_entry = global_variables
@@ -117,8 +104,14 @@ class Node:
             tree.add(weight_tree)
         if self.arguments_on_entry_tree is not None:
             tree.add(self.arguments_on_entry_tree)
+        else:
+            # assert False
+            pass
         if self.arguments_when_returning_tree is not None:
             tree.add(self.arguments_when_returning_tree)
+        else:
+            # assert False
+            pass
         if self.return_value_tree:
             tree.add(self.return_value_tree)
         elif self.return_value is not None:
@@ -142,26 +135,25 @@ class Node:
         if arguments and len(arguments) > 0 and len(pointer_or_ref_args) > 0:
             self.arguments_when_returning = arguments
             args_tree = ComparableTree("args when returning")
-            for arg in pointer_or_ref_args:
-                arg_tree_name = arg.print_name + " = "
-                if arg.value(self.frame).type.code == gdb.TYPE_CODE_PTR:
-                    arg_tree_name += str(arg.value(self.frame).dereference())
-                else:
-                    arg_tree_name += str(arg.value(self.frame).format_string(
-                        raw=False,
-                        pretty_arrays=True,
-                        pretty_structs=True,
-                        array_indexes=True,
-                        symbols=True,
-                        deref_refs=True))
-                args_tree.add(arg_tree_name)
-            self.arguments_when_returning_tree = args_tree
+            self.arguments_when_returning_tree = get_tree_from_arguments(args_tree,
+                                                                         pointer_or_ref_args,
+                                                                         self.frame)
+        else:
+            assert False
         self.global_variables_when_returning = global_variables
         self.object_state_when_returning = object_state
         self.finished = True
 
     def evaluate_answer(self, answer):
         self.iscorrect = answer
+
+# Global variables
+
+MY_DEBUGGING_SESSION = DebuggingSession()
+CORRECT_NODE_TREES: List[ComparableTree] = []
+PENDING_CORRECT_NODES: List[Node] = []
+
+# GDB Commands
 
 class CommandFinishSession(gdb.Command):
     """Set breakpoint for ending debugging session"""
@@ -175,33 +167,6 @@ class CommandFinishSession(gdb.Command):
         MY_DEBUGGING_SESSION.tree_built()
 
 CommandFinishSession()
-
-class SetFinalBreak(gdb.Breakpoint):
-    def __init__(self, function):
-        gdb.Breakpoint.__init__(self, function)
-        self.commands = "finish-debugging-session\n"
-        self.silent = True
-
-    def stop(self):
-        return True  # stop the execution at this point
-
-class SetSuspectBreak(gdb.Breakpoint):
-    def __init__(self, function):
-        gdb.Breakpoint.__init__(self, function)
-        self.commands = ("add-node-to-session " + function + "\n")
-        self.silent = True
-
-    def stop(self):
-        return True  # do not stop the execution at this point
-
-class SetReferenceBreak(gdb.Breakpoint):
-    def __init__(self, function):
-        gdb.Breakpoint.__init__(self, function)
-        self.commands = ("add-node-to-correct-list " + function + "\n")
-        self.silent = True
-
-    def stop(self):
-        return True  # stop the execution at this point
 
 class SaveReturningNode(gdb.Command):
     """Save the info at the moment a node is returning in declarative debugging session"""
@@ -438,6 +403,38 @@ class PrintTree(gdb.Command):
 
 PrintTree()
 
+# Breakpoints
+
+
+class SetFinalBreak(gdb.Breakpoint):
+    def __init__(self, function):
+        gdb.Breakpoint.__init__(self, function)
+        self.commands = "finish-debugging-session\n"
+        self.silent = True
+
+    def stop(self):
+        return True  # stop the execution at this point
+
+class SetSuspectBreak(gdb.Breakpoint):
+    def __init__(self, function):
+        gdb.Breakpoint.__init__(self, function)
+        self.commands = ("add-node-to-session " + function + "\n")
+        self.silent = True
+
+    def stop(self):
+        return True  # do not stop the execution at this point
+
+class SetReferenceBreak(gdb.Breakpoint):
+    def __init__(self, function):
+        gdb.Breakpoint.__init__(self, function)
+        self.commands = ("add-node-to-correct-list " + function + "\n")
+        self.silent = True
+
+    def stop(self):
+        return True  # stop the execution at this point
+
+# Finish breakpoints
+
 class MyFinishBreakpoint(gdb.FinishBreakpoint):
     def __init__(self, position):
         super(MyFinishBreakpoint, self).__init__()
@@ -462,10 +459,6 @@ class MyReferenceFinishBreakpoint(gdb.FinishBreakpoint):
         global PENDING_CORRECT_NODES
         PENDING_CORRECT_NODES[self.position].return_value = self.return_value
         return True
-
-MY_DEBUGGING_SESSION = DebuggingSession()
-CORRECT_NODE_TREES: List[ComparableTree] = []
-PENDING_CORRECT_NODES: List[Node] = []
 
 # Functions
 
@@ -825,6 +818,7 @@ def ask_questions() -> bool:
     answer = ask_about_node(marked_execution_tree)
     if answer in [Correctness.YES, Correctness.TRUSTED]:
         print("No buggy node found")
+        assert False
         return False
     if answer is Correctness.IDK:
         print("If you don't know, I cannot help you")
@@ -836,6 +830,7 @@ def ask_questions() -> bool:
         return False
     print("Buggy node found")
     print_tree(buggy_node.get_tree())
+    # assert False
     return True
 
 def can_node_be_compressed(marked_execution_tree: Node) -> Tuple[bool, int]:
@@ -888,3 +883,22 @@ def simplified_tree_compression(marked_execution_tree: Node, position: List[int]
 
 def apply_tree_transformations(marked_execution_tree: Node, tree_transformation):
     tree_transformation(marked_execution_tree, [])
+
+def get_tree_from_arguments(args_tree_root, arguments, frame):
+    assert len(arguments) > 0
+    assert frame.is_valid()
+    args_tree = args_tree_root
+    for arg in arguments:
+        arg_tree_name = arg.print_name + " = "
+        if arg.value(frame).type.code == gdb.TYPE_CODE_PTR:
+            arg_tree_name += str(arg.value(frame).dereference())
+        else:
+            arg_tree_name += str(arg.value(frame).format_string(
+                raw=False,
+                pretty_arrays=True,
+                pretty_structs=True,
+                array_indexes=True,
+                symbols=True,
+                deref_refs=True))
+        args_tree.add(arg_tree_name)
+    return args_tree
