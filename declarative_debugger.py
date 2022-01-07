@@ -818,7 +818,6 @@ def ask_questions() -> bool:
     answer = ask_about_node(marked_execution_tree)
     if answer in [Correctness.YES, Correctness.TRUSTED]:
         print("No buggy node found")
-        assert False
         return False
     if answer is Correctness.IDK:
         print("If you don't know, I cannot help you")
