@@ -84,6 +84,18 @@
           installPhase = "mkdir -p $out/tests; install -t $out/tests palindrome";
         };
 
+      packages.x86_64-linux.quicksort_array =
+        # Notice the reference to nixpkgs here.
+        with import nixpkgs { system = "x86_64-linux"; };
+        stdenv.mkDerivation {
+          name = "quicksort_array";
+          src = self;
+          dontStrip = true;
+          buildPhase = "gcc -O0 -g -o quicksort_array ./quicksort_array.cpp -lstdc++";
+          installPhase = "mkdir -p $out/tests; install -t $out/tests quicksort_array";
+        };
+
+
       devShell.x86_64-linux = pkgs.mkShell {
         inputsFrom = builtins.attrValues self.packages.x86_64-linux;
         buildInputs = with pkgs; [ python38 gdb rr z3 boogie poetry python38Packages.pylint python38Packages.autopep8 ];
