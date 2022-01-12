@@ -43,24 +43,31 @@ class Node:
                  frame: Optional[gdb.Frame] = None,
                  arguments: Optional[List[gdb.Symbol]] = None,
                  global_variables: Optional[List[gdb.Symbol]] = None,
-                 object_state: Optional[gdb.Symbol] = None,
                  position: List[int] = []) -> None:
         self.frame = frame
         self.function_name = function_name
         self.weight = 0
-        self.arguments_on_entry = arguments
-        self.arguments_on_entry_tree: Optional[ComparableTree] = None
-        if self.arguments_on_entry:
-            args_tree = ComparableTree("args on entry")
-            self.arguments_on_entry_tree = get_tree_from_arguments(args_tree,
-                                                                   arguments,
-                                                                   self.frame)
+        args_root = ComparableTree("arguments on entry")
+        self.arguments_on_entry, self.arguments_on_entry_tree = get_variables_from_symbols(args_root,
+                                                                                           arguments,
+                                                                                           self.frame)
         self.arguments_when_returning: List[gdb.Symbol] = []
         self.arguments_when_returning_tree: Optional[ComparableTree] = None
-        self.global_variables_on_entry = global_variables
+        # self.global_variables_on_entry, self.global_variables_on_entry_tree = None, None
+        global_variables_root = ComparableTree("global variables on entry")
+        self.global_variables_on_entry, self.global_variables_on_entry_tree = get_variables_from_symbols(
+            global_variables_root,
+            global_variables,
+            self.frame)
+        # assert self.global_variables_on_entry
         self.global_variables_when_returning: Optional[List[gdb.Symbol]] = []
-        self.object_state_on_entry = object_state
+        self.global_variables_when_returning_tree = None
+        self.object_state_on_entry, self.object_state_on_entry_tree = get_object_from_arguments(
+            "object state on entry = ",
+            arguments,
+            self.frame)
         self.object_state_when_returning = None
+        self.object_state_when_returning_tree = None
         self.return_value: Optional[gdb.Value] = None
         self.return_value_tree: Optional[ComparableTree] = None
         self.children: List[Node] = []
@@ -79,8 +86,12 @@ class Node:
         self.arguments_when_returning_tree = node.arguments_when_returning_tree
         self.global_variables_on_entry = node.global_variables_on_entry
         self.global_variables_when_returning = node.global_variables_when_returning
+        self.global_variables_on_entry_tree = node.global_variables_on_entry_tree
+        self.global_variables_when_returning_tree = node.global_variables_when_returning_tree
         self.object_state_on_entry = node.object_state_on_entry
         self.object_state_when_returning = node.object_state_when_returning
+        self.object_state_on_entry_tree = node.object_state_on_entry_tree
+        self.object_state_when_returning_tree = node.object_state_when_returning_tree
         self.return_value = node.return_value
         self.children = []
         for child in node.children:
@@ -102,16 +113,18 @@ class Node:
             weight_tree = ComparableTree("weight")
             weight_tree.add(str(self.weight))
             tree.add(weight_tree)
+        if self.object_state_on_entry_tree is not None:
+            tree.add(self.object_state_on_entry_tree)
         if self.arguments_on_entry_tree is not None:
             tree.add(self.arguments_on_entry_tree)
-        else:
-            # assert False
-            pass
+        if self.global_variables_on_entry_tree is not None:
+            tree.add(self.global_variables_on_entry_tree)
+        if self.object_state_when_returning_tree is not None:
+            tree.add(self.object_state_when_returning_tree)
         if self.arguments_when_returning_tree is not None:
             tree.add(self.arguments_when_returning_tree)
-        else:
-            # assert False
-            pass
+        if self.global_variables_when_returning_tree is not None:
+            tree.add(self.global_variables_when_returning_tree)
         if self.return_value_tree:
             tree.add(self.return_value_tree)
         elif self.return_value is not None:
@@ -128,20 +141,23 @@ class Node:
 
     def finish(self,
                arguments: Optional[List[gdb.Symbol]] = None,
-               global_variables: Optional[List[gdb.Symbol]] = None,
-               object_state: Optional[gdb.Symbol] = None) -> None:
+               global_variables: Optional[List[gdb.Symbol]] = None) -> None:
         assert self.frame.is_valid()
         pointer_or_ref_args = get_pointer_or_ref(arguments, self.frame)
-        if arguments and len(arguments) > 0 and len(pointer_or_ref_args) > 0:
-            self.arguments_when_returning = arguments
-            args_tree = ComparableTree("args when returning")
-            self.arguments_when_returning_tree = get_tree_from_arguments(args_tree,
-                                                                         pointer_or_ref_args,
-                                                                         self.frame)
-        else:
-            assert False
-        self.global_variables_when_returning = global_variables
-        self.object_state_when_returning = object_state
+        args_root = ComparableTree("arguments when returning")
+        self.arguments_when_returning, self.arguments_when_returning_tree = get_variables_from_symbols(args_root,
+                                                                                                    arguments,
+                                                                                                    self.frame)
+        self.global_variables_when_returning, self.global_variables_when_returning_tree = None, None
+        global_variables_root = ComparableTree("global variables when returning")
+        self.global_variables_when_returning, self.global_variables_when_returning_tree = get_variables_from_symbols(
+            global_variables_root,
+            get_global_variables(),
+            self.frame)
+        self.object_state_when_returning, self.object_state_when_returning_tree = get_object_from_arguments(
+            "object state when returning = ",
+            arguments,
+            self.frame)
         self.finished = True
 
     def evaluate_answer(self, answer):
@@ -229,7 +245,7 @@ class CommandAddNodeToSession(gdb.Command):
         global MY_DEBUGGING_SESSION
         arguments = [symbol for symbol in gdb.selected_frame().block() if symbol.is_argument]
         function_name = arg
-        my_node = Node(function_name, gdb.selected_frame(), arguments)
+        my_node = Node(function_name, gdb.selected_frame(), arguments, get_global_variables())
         if MY_DEBUGGING_SESSION.node is None:
             # First node
             MY_DEBUGGING_SESSION.node = my_node
@@ -254,7 +270,7 @@ class CommandAddNodeToCorrectList(gdb.Command):
         arguments = [symbol for symbol in gdb.selected_frame().block()
                      if symbol.is_argument]
         function_name = arg
-        my_node = Node(function_name, gdb.selected_frame(), arguments)
+        my_node = Node(function_name, gdb.selected_frame(), arguments, get_global_variables())
         PENDING_CORRECT_NODES.append(my_node)
         position = len(PENDING_CORRECT_NODES) - 1
         MyReferenceFinishBreakpoint(position)
@@ -883,21 +899,62 @@ def simplified_tree_compression(marked_execution_tree: Node, position: List[int]
 def apply_tree_transformations(marked_execution_tree: Node, tree_transformation):
     tree_transformation(marked_execution_tree, [])
 
-def get_tree_from_arguments(args_tree_root, arguments, frame):
-    assert len(arguments) > 0
+def get_variables_from_symbols(tree_root, symbols, frame):
+    if not frame:
+        return None, None
     assert frame.is_valid()
-    args_tree = args_tree_root
-    for arg in arguments:
-        arg_tree_name = arg.print_name + " = "
-        if arg.value(frame).type.code == gdb.TYPE_CODE_PTR:
-            arg_tree_name += str(arg.value(frame).dereference())
+    symbols_tree = tree_root
+    if not symbols:
+        return None, None
+    assert len(symbols) > 0
+    non_object_symbols = [symbol for symbol in symbols if symbol.print_name != "this"]
+    # There is only the object
+    if not non_object_symbols:
+        return None, None
+    for symbol in non_object_symbols:
+        symbol_branch = symbol.print_name + " = "
+        print(type(symbol))
+        print(symbol_branch)
+        if symbol.value(frame).type.code == gdb.TYPE_CODE_PTR:
+            symbol_branch += str(symbol.value(frame).dereference())
         else:
-            arg_tree_name += str(arg.value(frame).format_string(
+            symbol_branch += str(symbol.value(frame).format_string(
                 raw=False,
                 pretty_arrays=True,
                 pretty_structs=True,
                 array_indexes=True,
                 symbols=True,
                 deref_refs=True))
-        args_tree.add(arg_tree_name)
-    return args_tree
+        symbols_tree.add(symbol_branch)
+    return non_object_symbols, symbols_tree
+
+def get_object_from_arguments(tree_name, arguments, frame):
+    if not arguments:
+        return None, None
+    assert frame.is_valid()
+    object_argument = [argument for argument in arguments if argument.print_name == "this"]
+    # There are arguments to the function/method, no object
+    if not object_argument:
+        return None, None
+    object_branch = tree_name
+    my_object = object_argument[0]
+    if my_object.value(frame).type.code == gdb.TYPE_CODE_PTR:
+        object_branch += str(my_object.value(frame).dereference())
+    else:
+        object_branch += str(my_object.value(frame).format_string(
+            raw=False,
+            pretty_arrays=True,
+            pretty_structs=True,
+            array_indexes=True,
+            symbols=True,
+            deref_refs=True))
+    return my_object, ComparableTree(object_branch)
+
+def get_global_variables():
+    symbol_names = [symbol.name for symbol in gdb.newest_frame().find_sal().symtab.global_block()]
+    global_variables = []
+    for symbol_name in symbol_names:
+        global_variable = gdb.lookup_global_symbol(symbol_name)
+        if global_variable and global_variable.is_variable:
+            global_variables.append(global_variable)
+    return global_variables

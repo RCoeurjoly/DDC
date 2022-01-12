@@ -95,6 +95,17 @@
           installPhase = "mkdir -p $out/tests; install -t $out/tests palindrome";
         };
 
+      packages.x86_64-linux.car =
+        # Notice the reference to nixpkgs here.
+        with import nixpkgs { system = "x86_64-linux"; };
+        stdenv.mkDerivation {
+          name = "car";
+          src = self;
+          dontStrip = true;
+          buildPhase = "gcc -O0 -g -o car ./car.cpp -lstdc++";
+          installPhase = "mkdir -p $out/tests; install -t $out/tests car";
+        };
+
       packages.x86_64-linux.quicksort_array =
         # Notice the reference to nixpkgs here.
         with import nixpkgs { system = "x86_64-linux"; };
