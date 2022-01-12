@@ -135,7 +135,7 @@ class Node:
         if get_children and len(self.children) > 0:
             children_tree = ComparableTree("children")
             for child in self.children:
-                children_tree.add(child.get_tree())
+                children_tree.add(child.get_tree(get_children, get_weight, get_correctness))
             tree.add(children_tree)
         return tree
 
@@ -146,7 +146,7 @@ class Node:
         pointer_or_ref_args = get_pointer_or_ref(arguments, self.frame)
         args_root = ComparableTree("arguments when returning")
         self.arguments_when_returning, self.arguments_when_returning_tree = get_variables_from_symbols(args_root,
-                                                                                                    arguments,
+                                                                                                    pointer_or_ref_args,
                                                                                                     self.frame)
         self.global_variables_when_returning, self.global_variables_when_returning_tree = None, None
         global_variables_root = ComparableTree("global variables when returning")
