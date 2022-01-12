@@ -106,6 +106,17 @@
           installPhase = "mkdir -p $out/tests; install -t $out/tests car";
         };
 
+      packages.x86_64-linux.fibonacci =
+        # Notice the reference to nixpkgs here.
+        with import nixpkgs { system = "x86_64-linux"; };
+        stdenv.mkDerivation {
+          name = "fibonacci";
+          src = self;
+          dontStrip = true;
+          buildPhase = "gcc -O0 -g -o fibonacci ./fibonacci.cpp -lstdc++";
+          installPhase = "mkdir -p $out/tests; install -t $out/tests fibonacci";
+        };
+
       packages.x86_64-linux.quicksort_array =
         # Notice the reference to nixpkgs here.
         with import nixpkgs { system = "x86_64-linux"; };
