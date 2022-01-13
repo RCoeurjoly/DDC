@@ -6,7 +6,7 @@
 // Driver program to test header functions
 int main()
 {
-  std::vector<int> my_vector{ 1, 2 };
+  std::vector<int> my_vector{ 10, 7, 1 };
   //          {1, 7, 8, 9, 10, 5};
   //          {1, 5, 8, 9, 10, 7};
   //          {1, 5, 8, 9, 10, 7};

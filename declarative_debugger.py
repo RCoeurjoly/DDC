@@ -166,7 +166,7 @@ class Node:
 # Global variables
 
 MY_DEBUGGING_SESSION = DebuggingSession()
-CORRECT_NODE_TREES: List[ComparableTree] = []
+CORRECT_NODES: List[ComparableTree] = []
 PENDING_CORRECT_NODES: List[Node] = []
 
 # GDB Commands
@@ -199,7 +199,7 @@ class SaveReturningNode(gdb.Command):
             MY_DEBUGGING_SESSION.node, gdb.newest_frame())
         assert my_node.frame == gdb.newest_frame()
         my_node.finish(arguments=arguments)
-        if my_node.get_tree(False, False, False) in CORRECT_NODE_TREES:
+        if my_node.get_tree(False, False, False) in CORRECT_NODES:
             update_nodes_weight(MY_DEBUGGING_SESSION.node, my_node.position, -1)
             remove_node_from_tree(MY_DEBUGGING_SESSION.node, my_node.position)
         gdb.execute("n")
@@ -214,6 +214,7 @@ class SaveReturningCorrectNode(gdb.Command):
             "save-returning-correct-node", gdb.COMMAND_USER)
 
     def invoke(self, arg, from_tty):
+        global CORRECT_NODES
         gdb.execute("reverse-step") # To execute this command, rr is needed
         assert len(PENDING_CORRECT_NODES) > 0
         arguments = [symbol for symbol in gdb.newest_frame().block()
@@ -226,8 +227,10 @@ class SaveReturningCorrectNode(gdb.Command):
         my_node.finish(arguments=arguments)
         assert my_node.finished
         my_node_tree = my_node.get_tree(get_children=False, get_weight=False, get_correctness=False)
-        CORRECT_NODE_TREES.append(my_node_tree)
-        assert len(CORRECT_NODE_TREES) > 0
+        CORRECT_NODES.append(my_node_tree)
+        # Remove duplicates
+        # CORRECT_NODES = [x for n, x in enumerate(CORRECT_NODES) if x not in CORRECT_NODES[:n]]
+        assert len(CORRECT_NODES) > 0
         PENDING_CORRECT_NODES.pop()
         gdb.execute("n")
 
@@ -381,7 +384,7 @@ class ListenForCorrectNodes(gdb.Command):
                 data = conn.recv(4096)
                 if not data:
                     continue
-                CORRECT_NODE_TREES.append(pickle.loads(data))
+                CORRECT_NODES.append(pickle.loads(data))
             except KeyboardInterrupt:
                 if conn:
                     conn.close()
@@ -396,7 +399,7 @@ class SendCorrectNodes(gdb.Command):
             "send-correct-nodes", gdb.COMMAND_USER)
 
     def invoke(self, arg, from_tty):
-        for index, correct_node_tree in enumerate(CORRECT_NODE_TREES):
+        for index, correct_node_tree in enumerate(CORRECT_NODES):
             my_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             my_socket.connect((HOST, PORT))
             # Pickle the object and send it to the server

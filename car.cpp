@@ -18,7 +18,6 @@ private:
 };
 
 int main() {
-  // Create an object of Car
-  Car carObj1;
-  carObj1.move(10, 5);
+  Car my_car;
+  my_car.move(10, 5);
 }
