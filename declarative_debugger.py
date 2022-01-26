@@ -257,7 +257,8 @@ class CommandAddNodeToSession(gdb.Command):
             position = add_node_to_tree(MY_DEBUGGING_SESSION.node, my_node, [])
         my_node.position = position
         update_nodes_weight(MY_DEBUGGING_SESSION.node, position, 1)
-        MyFinishBreakpoint(position)
+        if not arg.startswith("main"):
+            MyFinishBreakpoint(position)
 
 CommandAddNodeToSession()
 
@@ -822,7 +823,7 @@ def hit_final_breakpoint():
     return False, None
 
 def choose_strategy():
-    print("Please choose debugging strategy")
+    print("Please choose navigation strategy")
     terminal_menu = TerminalMenu(strategy_options)
     menu_entry_index = terminal_menu.show()
     print(f"You have selected {strategy_options[menu_entry_index]}!")
@@ -918,17 +919,21 @@ def get_variables_from_symbols(tree_root, symbols, frame):
         symbol_branch = symbol.print_name + " = "
         print(type(symbol))
         print(symbol_branch)
-        if symbol.value(frame).type.code == gdb.TYPE_CODE_PTR:
-            symbol_branch += str(symbol.value(frame).dereference())
-        else:
-            symbol_branch += str(symbol.value(frame).format_string(
-                raw=False,
-                pretty_arrays=True,
-                pretty_structs=True,
-                array_indexes=True,
-                symbols=True,
-                deref_refs=True))
-        symbols_tree.add(symbol_branch)
+        try:
+            if symbol.value(frame).type.code == gdb.TYPE_CODE_PTR:
+                symbol_branch += str(symbol.value(frame).dereference())
+            else:
+                symbol_branch += str(symbol.value(frame).format_string(
+                    raw=False,
+                    pretty_arrays=True,
+                    pretty_structs=True,
+                    array_indexes=True,
+                    symbols=True,
+                    deref_refs=True))
+            symbols_tree.add(symbol_branch)
+        except gdb.MemoryError:
+            assert False
+            pass
     return non_object_symbols, symbols_tree
 
 def get_object_from_arguments(tree_name, arguments, frame):
