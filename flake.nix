@@ -49,7 +49,7 @@
 
       app = pkgs.poetry2nix.mkPoetryApplication {
         projectDir = ./.;
-        python = pkgs.python38;
+        python = pkgs.python39;
         overrides =
           [ pkgs.poetry2nix.defaultPoetryOverrides customOverrides ];
       };
@@ -146,15 +146,8 @@
           installPhase = "mkdir -p $out/tests; install -t $out/tests quicksort_array";
         };
 
-
-
-      # devShell.x86_64-linux = pkgs.mkShell {
-      #   inputsFrom = builtins.attrValues self.packages.x86_64-linux;
-      #   buildInputs = with pkgs; [ python38 gdb rr z3 boogie poetry python38Packages.pylint python38Packages.autopep8 ];
-      # };
-
       devShell.x86_64-linux = myAppEnv.env.overrideAttrs (oldAttrs: {
-        buildInputs = with pkgs; [ python38 gdb rr z3 boogie poetry python38Packages.pylint python38Packages.autopep8 ];
+        buildInputs = with pkgs; [ gdb rr z3 boogie poetry python39Packages.pylint python39Packages.autopep8 ];
       });
 
       checks.x86_64-linux = {
@@ -163,7 +156,7 @@
         test = pkgs.stdenv.mkDerivation {
           name = "DDC-test";
 
-          buildInputs = with pkgs; [ python38Packages.pylint ];
+          buildInputs = with pkgs; [ python39Packages.pylint ];
 
           unpackPhase = "true";
 
