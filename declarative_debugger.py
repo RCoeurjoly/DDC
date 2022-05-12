@@ -330,9 +330,9 @@ class StartDeclarativeDebuggingSession(gdb.Command):
             if build_tree():
                 global MY_DEBUGGING_SESSION
                 tree_transformations = [simplified_tree_compression]
-                tree_transformations = []
                 for tree_transformation in tree_transformations:
-                    apply_tree_transformations(MY_DEBUGGING_SESSION.node, tree_transformation)
+                    apply_tree_transformations(MY_DEBUGGING_SESSION.node,
+                                               tree_transformation)
                 return ask_questions()
             return False
         return False
