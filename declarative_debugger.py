@@ -480,6 +480,10 @@ class MyReferenceFinishBreakpoint(gdb.FinishBreakpoint):
 
 # Functions
 
+def buggy_node_found(marked_execution_tree: Node) -> bool:
+    return (marked_execution_tree.iscorrect == Correctness.NO
+            and len(marked_execution_tree.children) == 0)
+
 def general_debugging_algorithm(marked_execution_tree: Optional[Node],
                                 strategy: Callable[[Node,
                                                     List[int]],
@@ -488,8 +492,7 @@ def general_debugging_algorithm(marked_execution_tree: Optional[Node],
                                                          List[int]]]
                                 ) -> Optional[Node]:
     while (marked_execution_tree is not None
-           and not (marked_execution_tree.iscorrect == Correctness.NO
-                    and len(marked_execution_tree.children) == 0)):
+           and not buggy_node_found(marked_execution_tree)):
         assert marked_execution_tree.iscorrect == Correctness.NO
         selected_node, found, position = select_node(marked_execution_tree,
                                                      strategy)
@@ -684,7 +687,6 @@ def ask_about_node_with_extra_functionality(node: Node) -> Union[Correctness, Ex
     print_tree(node.get_tree(get_children=False))
     correctness_options = ["Yes", "No", "I don't know", "Trusted"]
     total_options = correctness_options + [
-        # "Undo",
         "Change strategy"]
     terminal_menu = TerminalMenu(total_options)
     menu_entry_index = terminal_menu.show()
@@ -693,7 +695,6 @@ def ask_about_node_with_extra_functionality(node: Node) -> Union[Correctness, Ex
         "No": Correctness.NO,
         "I don't know": Correctness.IDK,
         "Trusted": Correctness.TRUSTED,
-        # "Undo": ExtraFunctionality.UNDO,
         "Change strategy": ExtraFunctionality.CHANGE_STRATEGY
     }
     return answers_dict[total_options[menu_entry_index]]
