@@ -53,13 +53,11 @@ class Node:
                                                                                            self.frame)
         self.arguments_when_returning: List[gdb.Symbol] = []
         self.arguments_when_returning_tree: Optional[ComparableTree] = None
-        # self.global_variables_on_entry, self.global_variables_on_entry_tree = None, None
         global_variables_root = ComparableTree("global variables on entry")
         self.global_variables_on_entry, self.global_variables_on_entry_tree = get_variables_from_symbols(
             global_variables_root,
             global_variables,
             self.frame)
-        # assert self.global_variables_on_entry
         self.global_variables_when_returning: Optional[List[gdb.Symbol]] = []
         self.global_variables_when_returning_tree = None
         self.object_state_on_entry, self.object_state_on_entry_tree = get_object_from_arguments(
@@ -504,41 +502,14 @@ def general_debugging_algorithm(marked_execution_tree: Optional[Node],
                                            get_correctness=False)
         if answer == Correctness.NO:
             marked_execution_tree = selected_node
+            continue
         elif answer in [Correctness.YES, Correctness.IDK, Correctness.TRUSTED]:
             # Remove the node and remove the weight from all its parents
-            update_nodes_weight(marked_execution_tree, position,
-                                - get_node_from_position(marked_execution_tree, position).weight)
-            remove_node_from_tree(marked_execution_tree, position)
+            remove_node_and_update_tree(marked_execution_tree, position)
         if answer == Correctness.YES:
-            # Remove nodes with the same node_tree and remove the weight from all its parents
-            found = True
-            while True:
-                _, found, position = find_node_with_node_tree(marked_execution_tree, [], node_tree)
-                if found is False:
-                    break
-                update_nodes_weight(marked_execution_tree,
-                                    position,
-                                    - get_node_from_position(marked_execution_tree,
-                                                             position).weight)
-                deleted_tree = remove_node_from_tree(marked_execution_tree, position)
-                if deleted_tree:
-                    marked_execution_tree = None
-                    break
+            remove_correct_node_from_tree(marked_execution_tree, node_tree)
         elif answer == Correctness.TRUSTED:
-            # Remove nodes with the same name and remove the weight from all its parents
-            found = True
-            while True:
-                _, found, position = find_node_with_name(marked_execution_tree, [], function_name)
-                if found is False:
-                    break
-                update_nodes_weight(marked_execution_tree,
-                                    position,
-                                    - get_node_from_position(marked_execution_tree,
-                                                             position).weight)
-                deleted_tree = remove_node_from_tree(marked_execution_tree, position)
-                if deleted_tree:
-                    marked_execution_tree = None
-                    break
+            remove_trusted_node_from_tree(marked_execution_tree, function_name)
     return marked_execution_tree
 
 def select_node(marked_execution_tree: Node,
@@ -747,6 +718,43 @@ def remove_node_from_tree(marked_execution_tree: Node,
         marked_execution_tree.children.pop(position[0])
         return False
     return remove_node_from_tree(marked_execution_tree.children[position[0]], position[1:])
+
+def remove_node_and_update_tree(marked_execution_tree: Node,
+                                position: List[int]) -> bool:
+    """Returns true if marked_execution_tree should be deleted"""
+    update_nodes_weight(marked_execution_tree, position,
+                                - get_node_from_position(marked_execution_tree, position).weight)
+    return remove_node_from_tree(marked_execution_tree, position)
+
+def remove_trusted_node_from_tree(marked_execution_tree: Node, function_name: str):
+    # Remove nodes with the same name and remove the weight from all its parents
+    while True:
+        _, found, position = find_node_with_name(marked_execution_tree, [], function_name)
+        if found is False:
+            break
+        update_nodes_weight(marked_execution_tree,
+                            position,
+                            - get_node_from_position(marked_execution_tree,
+                                                     position).weight)
+        deleted_tree = remove_node_from_tree(marked_execution_tree, position)
+        if deleted_tree:
+            marked_execution_tree = None
+            break
+
+def remove_correct_node_from_tree(marked_execution_tree: Node, node_tree: Node):
+    # Remove nodes with the same node_tree and remove the weight from all its parents
+    while True:
+        _, found, position = find_node_with_node_tree(marked_execution_tree, [], node_tree)
+        if found is False:
+            break
+        update_nodes_weight(marked_execution_tree,
+                            position,
+                            - get_node_from_position(marked_execution_tree,
+                                                     position).weight)
+        deleted_tree = remove_node_from_tree(marked_execution_tree, position)
+        if deleted_tree:
+            marked_execution_tree = None
+            break
 
 def get_unfinished_node_from_frame(marked_execution_tree: Node,
                         frame: gdb.Frame) -> Node:
