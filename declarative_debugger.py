@@ -198,8 +198,8 @@ class SaveReturningNode(gdb.Command):
         assert my_node.frame == gdb.newest_frame()
         my_node.finish(arguments=arguments)
         if my_node.get_tree(False, False, False) in CORRECT_NODES:
-            update_nodes_weight(MY_DEBUGGING_SESSION.node, my_node.position, -1)
-            remove_node_from_tree(MY_DEBUGGING_SESSION.node, my_node.position)
+            remove_node_and_update_tree(MY_DEBUGGING_SESSION.node,
+                                        my_node.position)
         gdb.execute("n")
 
 SaveReturningNode()
