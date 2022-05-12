@@ -483,12 +483,16 @@ class MyReferenceFinishBreakpoint(gdb.FinishBreakpoint):
 def general_debugging_algorithm(marked_execution_tree: Optional[Node],
                                 strategy: Callable[[Node,
                                                     List[int]],
-                                                   Tuple[Node, bool, List[int]]]) -> Optional[Node]:
+                                                   Tuple[Node,
+                                                         bool,
+                                                         List[int]]]
+                                ) -> Optional[Node]:
     while (marked_execution_tree is not None
            and not (marked_execution_tree.iscorrect == Correctness.NO
                     and len(marked_execution_tree.children) == 0)):
         assert marked_execution_tree.iscorrect == Correctness.NO
-        selected_node, found, position = select_node(marked_execution_tree, strategy)
+        selected_node, found, position = select_node(marked_execution_tree,
+                                                     strategy)
         assert found
         assert selected_node.weight > 0
         answer = ask_about_node_with_extra_functionality(selected_node)
@@ -503,13 +507,18 @@ def general_debugging_algorithm(marked_execution_tree: Optional[Node],
         if answer == Correctness.NO:
             marked_execution_tree = selected_node
             continue
-        elif answer in [Correctness.YES, Correctness.IDK, Correctness.TRUSTED]:
+        elif answer in [Correctness.YES,
+                        Correctness.IDK,
+                        Correctness.TRUSTED]:
             # Remove the node and remove the weight from all its parents
-            remove_node_and_update_tree(marked_execution_tree, position)
+            remove_node_and_update_tree(marked_execution_tree,
+                                        position)
         if answer == Correctness.YES:
-            remove_correct_node_from_tree(marked_execution_tree, node_tree)
+            remove_correct_node_from_tree(marked_execution_tree,
+                                          node_tree)
         elif answer == Correctness.TRUSTED:
-            remove_trusted_node_from_tree(marked_execution_tree, function_name)
+            remove_trusted_node_from_tree(marked_execution_tree,
+                                          function_name)
     return marked_execution_tree
 
 def select_node(marked_execution_tree: Node,
