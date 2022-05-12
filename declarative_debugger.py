@@ -887,8 +887,11 @@ def compress_node(marked_execution_tree: Node, nodes_to_compress: int) -> Node:
     for _ in range(nodes_to_compress):
         tail_node = tail_node.children[0]
     compressed_node = tail_node
+    # The inputs are those of the head node
     compressed_node.arguments_on_entry_tree = head_node.arguments_on_entry_tree
-    compressed_node.return_value_tree = head_node.return_value_tree
+    compressed_node.global_variables_on_entry_tree = head_node.global_variables_on_entry_tree
+    compressed_node.object_state_on_entry_tree = head_node.object_state_on_entry_tree
+    # We construct a meaningful name
     compressed_node.function_name = head_node.function_name + "^" + str(nodes_to_compress + 1)
     return compressed_node
 
