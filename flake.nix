@@ -5,9 +5,10 @@
     # nixpkgs.url = "github:RCoeurjoly/nixpkgs";
     nixpkgs.url = "github:NixOS/nixpkgs";
     flake-utils.url = "github:numtide/flake-utils";
+    lean4.url = "github:leanprover/lean4";
   };
 
-  outputs = { self, nixpkgs, flake-utils }:
+  outputs = { self, nixpkgs, flake-utils, lean4 }:
     let
       pkgs = nixpkgs.legacyPackages.x86_64-linux;
 
@@ -147,8 +148,10 @@
         };
 
       devShell.x86_64-linux = myAppEnv.env.overrideAttrs (oldAttrs: {
-        buildInputs = with pkgs; [ gdb rr z3 boogie poetry python39Packages.pylint python39Packages.autopep8 ];
+        buildInputs = with pkgs; [ gdb rr csmith mercury z3 boogie poetry python39Packages.pylint python39Packages.autopep8 ];
       });
+
+      devShells.x86_64-linux.lean4 = lean4.devShell.x86_64-linux;
 
       checks.x86_64-linux = {
 
