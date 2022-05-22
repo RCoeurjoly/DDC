@@ -5,6 +5,4 @@ def main():
     gdb.execute("suspect-function swap(int*, int*)")
     gdb.execute("suspect-function partition(std::vector<int, std::allocator<int> >&, int, int)")
     gdb.execute("suspect-function main")
-    gdb.execute("final-point print_vector(std::vector<int, std::allocator<int> >const &)")
-
 main()

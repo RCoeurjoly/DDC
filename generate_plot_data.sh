@@ -22,14 +22,14 @@ create_data_from_program() {
     done
 }
 
-create_data_rr_replay() {
+create_data_tree_building() {
     program=${@:1:$#-1}
     file=${@: -1}
     echo "Program: " $program
     echo "File: " $file
     rm $file
     touch $file
-    for i in {1..17}
+    for i in {8..8}
     do
         input_vector=""
         power_i=$((2 ** $i))

@@ -838,6 +838,7 @@ def build_tree() -> bool:
     file1 = open("tree_building_ns.txt", "a")  # append mode
     file1.write(str(toc-tic) + "\n")
     file1.close()
+    gdb.execute("quit")
     print("Elapsed time during the whole program in ns:",
           toc-tic, 'ns')
     MY_DEBUGGING_SESSION.tree_built()

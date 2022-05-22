@@ -1,4 +1,3 @@
 set pagination off
 source declarative_debugger.py
 source demo.py
-start-declarative-debugging-session

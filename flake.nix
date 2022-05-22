@@ -123,7 +123,6 @@
              DURATION=$[ $(date +%s%N) - $START ]
              echo $power_i $DURATION >> $out/recording_time.txt
           done
-          #exit 1
           '';
         };
 
