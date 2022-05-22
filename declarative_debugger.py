@@ -1,6 +1,8 @@
 import json
 import socket
 import pickle
+import cProfile
+import re
 from enum import Enum
 from functools import reduce
 from typing import Union, List, Callable, Optional, Tuple
@@ -141,7 +143,7 @@ class Node:
     def finish(self,
                arguments: Optional[List[gdb.Symbol]] = None,
                global_variables: Optional[List[gdb.Symbol]] = None) -> None:
-        assert self.frame.is_valid()
+        # assert self.frame.is_valid()
         pointer_or_ref_args = get_pointer_or_ref(arguments, self.frame)
         args_root = ComparableTree("arguments when returning")
         self.arguments_when_returning, self.arguments_when_returning_tree = get_variables_from_symbols(args_root,
@@ -197,11 +199,11 @@ class SaveReturningNode(gdb.Command):
                      if symbol.is_argument]
         my_node = get_unfinished_node_from_frame(
             MY_DEBUGGING_SESSION.node, gdb.newest_frame())
-        assert my_node.frame == gdb.newest_frame()
+        # assert my_node.frame == gdb.newest_frame()
         my_node.finish(arguments=arguments)
-        if my_node.get_tree(False, False, False) in CORRECT_NODES:
-            remove_node_and_update_tree(MY_DEBUGGING_SESSION.node,
-                                        my_node.position)
+        #if my_node.get_tree(False, False, False) in CORRECT_NODES:
+        #    remove_node_and_update_tree(MY_DEBUGGING_SESSION.node,
+        #                                my_node.position)
         gdb.execute("n")
 
 SaveReturningNode()
@@ -216,21 +218,21 @@ class SaveReturningCorrectNode(gdb.Command):
     def invoke(self, arg, from_tty):
         global CORRECT_NODES
         gdb.execute("reverse-step") # To execute this command, rr is needed
-        assert len(PENDING_CORRECT_NODES) > 0
+        # assert len(PENDING_CORRECT_NODES) > 0
         arguments = [symbol for symbol in gdb.newest_frame().block()
                      if symbol.is_argument]
-        for pending_correct_node in PENDING_CORRECT_NODES:
-            assert pending_correct_node.finished is False
-            assert pending_correct_node.frame.is_valid()
+        # for pending_correct_node in PENDING_CORRECT_NODES:
+            # assert pending_correct_node.finished is False
+            # assert pending_correct_node.frame.is_valid()
         my_node = PENDING_CORRECT_NODES[-1]
-        assert my_node.frame == gdb.newest_frame()
+        # assert my_node.frame == gdb.newest_frame()
         my_node.finish(arguments=arguments)
-        assert my_node.finished
+        # assert my_node.finished
         my_node_tree = my_node.get_tree(get_children=False, get_weight=False, get_correctness=False)
         CORRECT_NODES.append(my_node_tree)
         # Remove duplicates
         # CORRECT_NODES = [x for n, x in enumerate(CORRECT_NODES) if x not in CORRECT_NODES[:n]]
-        assert len(CORRECT_NODES) > 0
+        # assert len(CORRECT_NODES) > 0
         PENDING_CORRECT_NODES.pop()
         gdb.execute("n")
 
@@ -357,9 +359,7 @@ class TilTheEnd(gdb.Command):
             gdb.execute("c")
             total_br_number = len(gdb.breakpoints())
         # The sum of hit_count of all correct nodes should be greater than 0
-        assert reduce(lambda x, y: x + y,
-                      [breakpoint.hit_count for breakpoint in gdb.breakpoints()
-                       if breakpoint.commands.startswith("add-node-to-correct-list")]) > 0
+        # assert reduce(lambda x, y: x + y, [breakpoint.hit_count for breakpoint in gdb.breakpoints() if breakpoint.commands.startswith("add-node-to-correct-list")]) > 0
         while gdb.selected_inferior().pid != 0:
             gdb.execute("c")
             total_br_number = len(gdb.breakpoints())
@@ -495,11 +495,11 @@ def general_debugging_algorithm(marked_execution_tree: Optional[Node],
                                 ) -> Optional[Node]:
     while (marked_execution_tree is not None
            and not buggy_node_found(marked_execution_tree)):
-        assert marked_execution_tree.iscorrect == Correctness.NO
+        # assert marked_execution_tree.iscorrect == Correctness.NO
         selected_node, found, position = select_node(marked_execution_tree,
                                                      strategy)
-        assert found
-        assert selected_node.weight > 0
+        # assert found
+        # assert selected_node.weight > 0
         answer = ask_about_node_with_extra_functionality(selected_node)
         if answer == ExtraFunctionality.CHANGE_STRATEGY:
             strategy = strategies_dict[choose_strategy()]
@@ -608,7 +608,7 @@ def divide_and_query_hirunkitti_strategy(marked_execution_tree: Node,
     # We select the child node whose weight is the closest to w(n)/2
     # w(child node) being >= w(n)/2
     # or w(child node) being <= w(n)/2
-    assert len(marked_execution_tree.children) > 0
+    # assert len(marked_execution_tree.children) > 0
     pivot = marked_execution_tree.weight/2
     distance = marked_execution_tree.weight/2
     choosen_node = marked_execution_tree
@@ -623,7 +623,7 @@ def divide_and_query_hirunkitti_strategy(marked_execution_tree: Node,
 def heaviest_first_strategy(marked_execution_tree: Node,
                             position: List[int]) -> Tuple[Node, bool, List[int]]:
     # We select the child node whose weight is the heaviest
-    assert len(marked_execution_tree.children) > 0
+    # assert len(marked_execution_tree.children) > 0
     heaviest_weight = 0
     for index, child in enumerate(marked_execution_tree.children):
         if child.weight > heaviest_weight:
@@ -773,7 +773,7 @@ def get_unfinished_node_from_frame(marked_execution_tree: Node,
     # If the frame coincides, we also check that is an unfinished node
     if marked_execution_tree.frame == frame and marked_execution_tree.finished is False:
         return marked_execution_tree
-    assert len(marked_execution_tree.children) > 0
+    # assert len(marked_execution_tree.children) > 0
     return get_unfinished_node_from_frame(marked_execution_tree.children[-1], frame)
 
 def get_pointer_or_ref(arguments: Optional[List[gdb.Symbol]], frame: gdb.Frame) -> List[gdb.Symbol]:
@@ -820,9 +820,7 @@ def build_tree() -> bool:
         gdb.execute("c")
         total_br_number = len(gdb.breakpoints())
     # The sum of hit_count of all suspect nodes should be greater than 0
-    assert reduce(lambda x, y: x + y,
-                  [breakpoint.hit_count for breakpoint in gdb.breakpoints()
-                   if breakpoint.commands.startswith("add-node-to-session ")]) > 0
+    # assert reduce(lambda x, y: x + y, [breakpoint.hit_count for breakpoint in gdb.breakpoints() if breakpoint.commands.startswith("add-node-to-session ")]) > 0
     # First finish breakpoint reached, reaching final state
     # If a final-point has already been reached, exit with error
     is_hit, my_breakpoint = hit_final_breakpoint()
@@ -836,11 +834,11 @@ def build_tree() -> bool:
         total_br_number = len(gdb.breakpoints())
     toc = perf_counter_ns()
     file1 = open("tree_building_ns.txt", "a")  # append mode
-    file1.write(str(toc-tic) + "\n")
+    file1.write(str(MY_DEBUGGING_SESSION.node.weight) + " " + str(toc-tic) + "\n")
     file1.close()
-    gdb.execute("quit")
-    print("Elapsed time during the whole program in ns:",
-          toc-tic, 'ns')
+    #gdb.execute("quit")
+    #print("Elapsed time during the whole program in ns:",
+    #      toc-tic, 'ns')
     MY_DEBUGGING_SESSION.tree_built()
     return True
 
@@ -861,7 +859,7 @@ def choose_strategy():
 def ask_questions() -> bool:
     """Returns True if buggy node is found. False otherwise"""
     strategy = strategies_dict[choose_strategy()]
-    assert MY_DEBUGGING_SESSION.is_tree_built
+    # assert MY_DEBUGGING_SESSION.is_tree_built
     marked_execution_tree = Node("frame")
     marked_execution_tree.deepcopy(MY_DEBUGGING_SESSION.node)
     answer = ask_about_node(marked_execution_tree)
@@ -878,7 +876,6 @@ def ask_questions() -> bool:
         return False
     print("Buggy node found")
     print_tree(buggy_node.get_tree())
-    # assert False
     return True
 
 def can_node_be_compressed(marked_execution_tree: Node) -> Tuple[bool, int]:
@@ -938,11 +935,11 @@ def apply_tree_transformations(marked_execution_tree: Node, tree_transformation)
 def get_variables_from_symbols(tree_root, symbols, frame):
     if not frame:
         return None, None
-    assert frame.is_valid()
+    # assert frame.is_valid()
     symbols_tree = tree_root
     if not symbols:
         return None, None
-    assert len(symbols) > 0
+    # assert len(symbols) > 0
     non_object_symbols = [symbol for symbol in symbols if symbol.print_name != "this"]
     # There is only the object
     if not non_object_symbols:
@@ -964,14 +961,14 @@ def get_variables_from_symbols(tree_root, symbols, frame):
                     deref_refs=True))
             symbols_tree.add(symbol_branch)
         except gdb.MemoryError:
-            assert False
+            # assert False
             pass
     return non_object_symbols, symbols_tree
 
 def get_object_from_arguments(tree_name, arguments, frame):
     if not arguments:
         return None, None
-    assert frame.is_valid()
+    # assert frame.is_valid()
     object_argument = [argument for argument in arguments if argument.print_name == "this"]
     # There are arguments to the function/method, no object
     if not object_argument:
