@@ -4,6 +4,7 @@ import pickle
 from enum import Enum
 from functools import reduce
 from typing import Union, List, Callable, Optional, Tuple
+from time import perf_counter_ns
 import gdb # type: ignore
 from rich.tree import Tree
 from rich import print as print_tree
@@ -166,7 +167,8 @@ class Node:
 MY_DEBUGGING_SESSION = DebuggingSession()
 CORRECT_NODES: List[ComparableTree] = []
 PENDING_CORRECT_NODES: List[Node] = []
-
+tic = None
+toc = None
 # GDB Commands
 
 class CommandFinishSession(gdb.Command):
@@ -812,6 +814,8 @@ def build_tree() -> bool:
     initial_br_number = get_suspect_plus_final_br_number()
     # Reaching first suspect function, which is going to create a finish breakpoint
     total_br_number = len(gdb.breakpoints())
+    global tic, toc
+    tic = perf_counter_ns()
     while total_br_number == initial_br_number:
         gdb.execute("c")
         total_br_number = len(gdb.breakpoints())
@@ -830,6 +834,12 @@ def build_tree() -> bool:
     while total_br_number != initial_br_number:
         gdb.execute("c")
         total_br_number = len(gdb.breakpoints())
+    toc = perf_counter_ns()
+    file1 = open("tree_building_ns.txt", "a")  # append mode
+    file1.write(str(toc-tic) + "\n")
+    file1.close()
+    print("Elapsed time during the whole program in ns:",
+          toc-tic, 'ns')
     MY_DEBUGGING_SESSION.tree_built()
     return True
 

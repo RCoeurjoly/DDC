@@ -4,3 +4,5 @@ gdb_record*
 *.log
 core*
 tmp/
+*.txt
+.gdbinit

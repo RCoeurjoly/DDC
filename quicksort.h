@@ -40,4 +40,5 @@ void print_vector(const std::vector<int> &my_vector)
   for (size_t i = 0; i < my_vector.size(); i++) {
     std::cout << my_vector[i] << ' ';
   }
+  std::cout << "\n";
 }

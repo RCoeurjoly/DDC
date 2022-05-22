@@ -81,6 +81,64 @@
           installPhase = "mkdir -p $out/bin; install -t $out/bin quicksort_wrong_bt";
         };
 
+
+      packages.x86_64-linux.quicksort_benchmarks =
+        # Notice the reference to nixpkgs here.
+        with import nixpkgs { system = "x86_64-linux"; };
+        stdenv.mkDerivation {
+          name = "quicksort_benchmarks";
+          src = self;
+          dontStrip = true;
+          buildPhase = "gcc -I./ -O0 -g -o quicksort_benchmarks ./quicksort_benchmarks.cpp -lstdc++";
+          installPhase = "mkdir -p $out/bin; install -t $out/bin quicksort_benchmarks";
+        };
+
+      packages.x86_64-linux.benchmarks =
+        # Notice the reference to nixpkgs here.
+        with import nixpkgs { system = "x86_64-linux"; };
+        stdenv.mkDerivation {
+          name = "benchmarks";
+          src = self;
+          dontStrip = true;
+          buildInputs = [ gdb rr ];
+          installPhase = ''
+          mkdir -p $out;
+          touch $out/execution_time.txt;
+          touch $out/recording_time.txt;
+          for i in {1..17}
+          do
+             input_vector=""
+             power_i=$((2 ** $i))
+             for j in $( eval echo {1..$power_i})
+             do
+                input_vector+=" $RANDOM"
+             done
+             START="$(date +%s%N)"
+             ${self.packages.x86_64-linux.quicksort_benchmarks.outPath}/bin/quicksort_benchmarks $input_vector
+             DURATION=$[ $(date +%s%N) - $START ]
+             echo $power_i $DURATION >> $out/execution_time.txt
+             START="$(date +%s%N)"
+             #${rr}/bin/rr record ${self.packages.x86_64-linux.quicksort_benchmarks.outPath}/bin/quicksort_benchmarks $input_vector
+             rr record ${self.packages.x86_64-linux.quicksort_benchmarks.outPath}/bin/quicksort_benchmarks
+             DURATION=$[ $(date +%s%N) - $START ]
+             echo $power_i $DURATION >> $out/recording_time.txt
+          done
+          #exit 1
+          '';
+        };
+
+
+      packages.x86_64-linux.multithreading =
+        # Notice the reference to nixpkgs here.
+        with import nixpkgs { system = "x86_64-linux"; };
+        stdenv.mkDerivation {
+          name = "multithreading";
+          src = self;
+          dontStrip = true;
+          buildPhase = "gcc -I./ -O0 -g -pthread -o multithreading ./multithreading.cpp -lstdc++";
+          installPhase = "mkdir -p $out/bin; install -t $out/bin multithreading";
+        };
+
       packages.x86_64-linux.test_quicksort =
         # Notice the reference to nixpkgs here.
         with import nixpkgs { system = "x86_64-linux"; };
