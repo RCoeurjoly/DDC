@@ -59,7 +59,9 @@
     in {
       packages.x86_64-linux.${packageName} = app;
 
-      defaultPackage.x86_64-linux =
+      packages.x86_64-linux.default = self.packages.x86_64-linux.quicksort;
+
+      packages.x86_64-linux.quicksort =
         # Notice the reference to nixpkgs here.
         with import nixpkgs { system = "x86_64-linux"; };
         stdenv.mkDerivation {
@@ -204,11 +206,121 @@
           installPhase = "mkdir -p $out/tests; install -t $out/tests quicksort_array";
         };
 
-      devShell.x86_64-linux = myAppEnv.env.overrideAttrs (oldAttrs: {
+      packages.x86_64-linux.database =
+        # Notice the reference to nixpkgs here.
+        with import nixpkgs { system = "x86_64-linux"; };
+        stdenv.mkDerivation {
+          name = "reference-data-db";
+          src = self;
+          installPhase =
+            ''
+          mkdir -p $out/db
+          mkdir -p $out/db/migrations
+          cp ${./db/schema.sql} $out/db/schema.sql
+          cp ${./db/migrations}/*.sql $out/db/migrations/
+          '';
+        };
+
+      checks.x86_64-linux.rollback =
+        pkgs.stdenv.mkDerivation {
+          name = "database_up_and_rollback";
+
+          buildInputs = [ self.packages.x86_64-linux.database pkgs.dbmate pkgs.mysql57 ];
+
+          unpackPhase = "true";
+
+          doCheck = true;
+          src = ./.;
+          preCheck = self.packages.x86_64-linux.database.installPhase;
+          doInstallCheck = true;
+          postInstallCheckPhase = ''
+          export DATABASE_URL="mysql://user:pass@db/test_rollback"
+          if [ -z "$out" ] || [[ $out != /nix* ]]; then
+          out="."
+          fi
+
+          rm -rf $out/db_*
+          dbmate drop
+          COUNT=0
+          LAST_COUNT=0
+          for f in $out/db/migrations/*.sql ; do
+              mkdir -p $out/db_$COUNT/migrations
+              if [ $COUNT -ne 0 ];  then
+                 cp -rf "$out/db_$((COUNT-1))/migrations" "$out/db_$COUNT/"
+
+              fi
+              cp "$f" "$out/db_$COUNT/migrations/"
+              dbmate --migrations-dir $out/db_$COUNT/migrations --schema-file $out/db_$COUNT/schema.sql up
+              cat $out/db_$COUNT/schema.sql
+              LAST_COUNT=$COUNT
+              COUNT=$((COUNT+1))
+          done
+
+          COUNT=$((COUNT-2))
+
+          echo "Testing rollback"
+          for ((i=COUNT; i>=0; i--)); do
+              LOG_ROOLBACK=$(dbmate --migrations-dir $out/db/migrations --schema-file $out/db_$COUNT/schema.sql rollback)
+              echo "$i: $LOG_ROOLBACK"
+              diff -u $out/db/schema.sql $out/db_$i/schema.sql
+              if [ $? -ne 0 ] ; then
+                 echo "Bad rollback on step: $i: $LOG_ROOLBACK"
+                 exit 1
+              fi
+          done
+
+          # Last step
+          LOG_ROOLBACK=$(dbmate -d="$out/db/migrations" rollback)
+          echo "Last step: $LOG_ROOLBACK"
+          RESULT=$(grep "CREATE TABLE" -c $out/db/schema.sql)
+          if [  "$RESULT" != "1"  ] ; then
+             cat $out/db/schema.sql
+             echo "bad last step rollback: $LOG_ROOLBACK"
+             exit 1
+          fi
+          exit 0
+              '';
+
+          installPhase = "mkdir -p $out";
+        };
+
+      checks.x86_64-linux.schema =
+        pkgs.stdenv.mkDerivation {
+          name = "database_schema.sql_up_to_date";
+
+          buildInputs = [ self.packages.x86_64-linux.database pkgs.dbmate pkgs.mysql80 pkgs.mysql ];
+
+          unpackPhase = "true";
+
+          doCheck = true;
+          src = ./.;
+          preCheck = self.packages.x86_64-linux.database.installPhase;
+          doInstallCheck = true;
+          installCheckPhase = ''
+                dbmate --version
+                export DATABASE_URL="mysql://root:redhatbolsa@db/test_rollback"
+                mysql -u root -predhatbolsa -h 127.0.0.1 -e "DROP DATABASE IF EXISTS test_rollback;"
+                export DBMATE_MIGRATIONS_DIR="$out/"
+                dbmate wait
+                mysql -u root -predhatbolsa -h 127.0.0.1 -e "SET GLOBAL sql_mode='NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION';"
+                pwd
+                grep -v "^/\*" $out/db/schema.sql  | grep -v "^--" > schema.clean.repo
+                dbmate -d="$out/db/migrations" up
+                grep -v "^/\*" $out/db/schema.sql  | grep -v "^--" > schema.clean.new_generated
+                diff -u schema.clean.repo schema.clean.new_generated
+              '';
+
+          installPhase = "mkdir -p $out";
+        };
+
+
+      devShells.x86_64-linux.dbmate = pkgs.mkShell {
+        buildInputs = with pkgs; [ dbmate mysql80 mysql ];
+      };
+
+      devShells.x86_64-linux.default = myAppEnv.env.overrideAttrs (oldAttrs: {
         buildInputs = with pkgs; [ gdb rr csmith mercury z3 boogie poetry python39Packages.pylint python39Packages.autopep8 ];
       });
-
-      devShells.x86_64-linux.lean4 = lean4.devShell.x86_64-linux;
 
       checks.x86_64-linux = {
 
@@ -222,7 +334,6 @@
 
           doCheck = true;
           src = ./.;
-          # preCheck = self.defaultPackage.x86_64-linux.installPhase;
           doInstallCheck = true;
           installCheckPhase = ''
                 pylint declarative_debugger.py
