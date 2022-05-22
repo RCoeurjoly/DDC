@@ -210,7 +210,7 @@
         # Notice the reference to nixpkgs here.
         with import nixpkgs { system = "x86_64-linux"; };
         stdenv.mkDerivation {
-          name = "reference-data-db";
+          name = "database";
           src = self;
           installPhase =
             ''
@@ -234,7 +234,7 @@
           preCheck = self.packages.x86_64-linux.database.installPhase;
           doInstallCheck = true;
           postInstallCheckPhase = ''
-          export DATABASE_URL="mysql://user:pass@db/test_rollback"
+          export DATABASE_URL="mysql://root:redhatbolsa@db/test_rollback"
           if [ -z "$out" ] || [[ $out != /nix* ]]; then
           out="."
           fi
@@ -286,7 +286,7 @@
 
       checks.x86_64-linux.schema =
         pkgs.stdenv.mkDerivation {
-          name = "database_schema.sql_up_to_date";
+          name = "database_schema_sql_up_to_date";
 
           buildInputs = [ self.packages.x86_64-linux.database pkgs.dbmate pkgs.mysql80 pkgs.mysql ];
 
@@ -307,7 +307,11 @@
                 grep -v "^/\*" $out/db/schema.sql  | grep -v "^--" > schema.clean.repo
                 dbmate -d="$out/db/migrations" up
                 grep -v "^/\*" $out/db/schema.sql  | grep -v "^--" > schema.clean.new_generated
-                diff -u schema.clean.repo schema.clean.new_generated
+                diff -q schema.clean.repo schema.clean.new_generated
+                cmp -s schema.clean.repo schema.clean.new_generated
+                cat schema.clean.repo
+                cat schema.clean.new_generated
+                exit 1
               '';
 
           installPhase = "mkdir -p $out";
@@ -323,24 +327,20 @@
       });
 
       checks.x86_64-linux = {
-
         # Additional tests, if applicable.
         test = pkgs.stdenv.mkDerivation {
           name = "DDC-test";
-
           buildInputs = with pkgs; [ python39Packages.pylint ];
-
           unpackPhase = "true";
-
           doCheck = true;
           src = ./.;
           doInstallCheck = true;
           installCheckPhase = ''
                 pylint declarative_debugger.py
               '';
-
           installPhase = "mkdir -p $out";
         };
       };
+
     };
 }
