@@ -24,6 +24,48 @@ CREATE TABLE `arguments_on_entry` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
+-- Table structure for table `arguments_when_returning`
+--
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `arguments_when_returning` (
+  `node_id` int(10) unsigned DEFAULT NULL,
+  `argument_name` char(255) NOT NULL DEFAULT '',
+  `argument_value` blob NOT NULL,
+  UNIQUE KEY `node_id` (`node_id`,`argument_name`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `global_variables_on_entry`
+--
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `global_variables_on_entry` (
+  `node_id` int(10) unsigned DEFAULT NULL,
+  `global_variable_name` char(255) NOT NULL DEFAULT '',
+  `global_variable_value` blob NOT NULL,
+  UNIQUE KEY `node_id` (`node_id`,`global_variable_name`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `global_variables_when_returning`
+--
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `global_variables_when_returning` (
+  `node_id` int(10) unsigned DEFAULT NULL,
+  `global_variable_name` char(255) NOT NULL DEFAULT '',
+  `global_variable_value` blob NOT NULL,
+  UNIQUE KEY `node_id` (`node_id`,`global_variable_name`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
 -- Table structure for table `nodes`
 --
 
