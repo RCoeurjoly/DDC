@@ -1,5 +1,5 @@
 -- migrate:up
-CREATE TABLE `node` (
+CREATE TABLE `nodes` (
   `node_id` int unsigned,
   `parent_node_id` int unsigned,
   `birth_order` int unsigned,

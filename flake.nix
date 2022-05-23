@@ -288,7 +288,7 @@
         pkgs.stdenv.mkDerivation {
           name = "database_schema_sql_up_to_date";
 
-          buildInputs = [ self.packages.x86_64-linux.database pkgs.dbmate pkgs.mysql80 pkgs.mysql ];
+          buildInputs = [ self.packages.x86_64-linux.database pkgs.dbmate pkgs.mysql57 pkgs.mysql ];
 
           unpackPhase = "true";
 
@@ -305,13 +305,12 @@
                 mysql -u root -predhatbolsa -h 127.0.0.1 -e "SET GLOBAL sql_mode='NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION';"
                 pwd
                 grep -v "^/\*" $out/db/schema.sql  | grep -v "^--" > schema.clean.repo
-                dbmate -d="$out/db/migrations" up
-                grep -v "^/\*" $out/db/schema.sql  | grep -v "^--" > schema.clean.new_generated
-                diff -q schema.clean.repo schema.clean.new_generated
-                cmp -s schema.clean.repo schema.clean.new_generated
+                dbmate -d="$out/db/migrations" -s="schema_up.sql" up
+                grep -v "^/\*" schema_up.sql  | grep -v "^--" > schema.clean.new_generated
                 cat schema.clean.repo
                 cat schema.clean.new_generated
-                exit 1
+                diff -q schema.clean.repo schema.clean.new_generated
+                cmp -s schema.clean.repo schema.clean.new_generated
               '';
 
           installPhase = "mkdir -p $out";
@@ -319,7 +318,7 @@
 
 
       devShells.x86_64-linux.dbmate = pkgs.mkShell {
-        buildInputs = with pkgs; [ dbmate mysql80 mysql ];
+        buildInputs = with pkgs; [ dbmate mysql57 mysql ];
       };
 
       devShells.x86_64-linux.default = myAppEnv.env.overrideAttrs (oldAttrs: {
