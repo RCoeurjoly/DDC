@@ -9,6 +9,7 @@ CREATE TABLE `nodes` (
   `object_when_returning` blob NOT NULL DEFAULT '',
   `creation_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `finishing_time` timestamp ON UPDATE CURRENT_TIMESTAMP,
+  `finished` boolean NOT NULL DEFAULT false,
   unique KEY (`node_id`),
   unique KEY (`parent_node_id`, `birth_order`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
