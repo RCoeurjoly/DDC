@@ -19,8 +19,9 @@ CREATE TABLE `arguments_on_entry` (
   `node_id` int(10) unsigned DEFAULT NULL,
   `argument_name` char(255) NOT NULL DEFAULT '',
   `argument_value` blob NOT NULL,
-  UNIQUE KEY `node_id` (`node_id`,`argument_name`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+  UNIQUE KEY `node_id` (`node_id`,`argument_name`),
+  CONSTRAINT `arguments_on_entry_fk_1` FOREIGN KEY (`node_id`) REFERENCES `nodes` (`node_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -33,8 +34,10 @@ CREATE TABLE `arguments_when_returning` (
   `node_id` int(10) unsigned DEFAULT NULL,
   `argument_name` char(255) NOT NULL DEFAULT '',
   `argument_value` blob NOT NULL,
-  UNIQUE KEY `node_id` (`node_id`,`argument_name`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+  UNIQUE KEY `node_id` (`node_id`,`argument_name`),
+  CONSTRAINT `arguments_when_returning_fk_1` FOREIGN KEY (`node_id`) REFERENCES `nodes` (`node_id`),
+  CONSTRAINT `arguments_when_returning_fk_2` FOREIGN KEY (`node_id`, `argument_name`) REFERENCES `arguments_on_entry` (`node_id`, `argument_name`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -47,8 +50,9 @@ CREATE TABLE `global_variables_on_entry` (
   `node_id` int(10) unsigned DEFAULT NULL,
   `global_variable_name` char(255) NOT NULL DEFAULT '',
   `global_variable_value` blob NOT NULL,
-  UNIQUE KEY `node_id` (`node_id`,`global_variable_name`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+  UNIQUE KEY `node_id` (`node_id`,`global_variable_name`),
+  CONSTRAINT `global_variables_on_entry_fk_1` FOREIGN KEY (`node_id`) REFERENCES `nodes` (`node_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -61,8 +65,10 @@ CREATE TABLE `global_variables_when_returning` (
   `node_id` int(10) unsigned DEFAULT NULL,
   `global_variable_name` char(255) NOT NULL DEFAULT '',
   `global_variable_value` blob NOT NULL,
-  UNIQUE KEY `node_id` (`node_id`,`global_variable_name`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+  UNIQUE KEY `node_id` (`node_id`,`global_variable_name`),
+  CONSTRAINT `global_variables_when_returning_fk_1` FOREIGN KEY (`node_id`) REFERENCES `nodes` (`node_id`),
+  CONSTRAINT `global_variables_when_returning_fk_2` FOREIGN KEY (`node_id`, `global_variable_name`) REFERENCES `global_variables_on_entry` (`node_id`, `global_variable_name`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -83,8 +89,9 @@ CREATE TABLE `nodes` (
   `finishing_time` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00' ON UPDATE CURRENT_TIMESTAMP,
   `finished` tinyint(1) NOT NULL DEFAULT '0',
   UNIQUE KEY `node_id` (`node_id`),
-  UNIQUE KEY `parent_node_id` (`parent_node_id`,`birth_order`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+  UNIQUE KEY `parent_node_id` (`parent_node_id`,`birth_order`),
+  CONSTRAINT `nodes_fk_1` FOREIGN KEY (`parent_node_id`) REFERENCES `nodes` (`node_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
