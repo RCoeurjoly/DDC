@@ -55,6 +55,15 @@
           [ pkgs.poetry2nix.defaultPoetryOverrides customOverrides ];
       };
 
+        cfg = {  # default configuration
+          mysqlPort = "3307";
+          mysqlPassword = "admin";
+        };
+
+        rootDir   = "/";
+        mysqlDir  = "${rootDir}/mysql";
+        mysqlConf     = (import ./mysql/config/mysql.conf.nix) {inherit pkgs mysqlDir; mysqlPort = cfg.mysqlPort; };
+
       packageName = "declarative-debugger-for-cpp";
     in {
       packages.x86_64-linux.${packageName} = app;
@@ -216,8 +225,8 @@
             ''
           mkdir -p $out/db
           mkdir -p $out/db/migrations
-          cp ${./db/schema.sql} $out/db/schema.sql
-          cp ${./db/migrations}/*.sql $out/db/migrations/
+          cp ${./mysql/db/schema.sql} $out/db/schema.sql
+          cp ${./mysql/db/migrations}/*.sql $out/db/migrations/
           '';
         };
 
@@ -234,7 +243,7 @@
           preCheck = self.packages.x86_64-linux.database.installPhase;
           doInstallCheck = true;
           postInstallCheckPhase = ''
-          export DATABASE_URL="mysql://root:redhatbolsa@db/test_rollback"
+          export DATABASE_URL="mysql://root:ddc@db/test_rollback"
           if [ -z "$out" ] || [[ $out != /nix* ]]; then
           out="."
           fi
@@ -298,11 +307,11 @@
           doInstallCheck = true;
           installCheckPhase = ''
                 dbmate --version
-                export DATABASE_URL="mysql://root:redhatbolsa@db/test_rollback"
-                mysql -u root -predhatbolsa -h 127.0.0.1 -e "DROP DATABASE IF EXISTS test_rollback;"
-                export DBMATE_MIGRATIONS_DIR="$out/"
+                export DATABASE_URL="mysql://root:ddc@db/test_schema"
+                mysql -u root -pddc -h 127.0.0.1 -e "DROP DATABASE IF EXISTS test_schema;"
+                export DBMATE_MIGRATIONS_DIR="$out"
                 dbmate wait
-                mysql -u root -predhatbolsa -h 127.0.0.1 -e "SET GLOBAL sql_mode='NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION';"
+                mysql -u root -pddc -h 127.0.0.1 -e "SET GLOBAL sql_mode='NO_ENGINE_SUBSTITUTION';"
                 pwd
                 grep -v "^/\*" $out/db/schema.sql  | grep -v "^--" > schema.clean.repo
                 dbmate -d="$out/db/migrations" -s="schema_up.sql" up
@@ -319,10 +328,48 @@
 
       devShells.x86_64-linux.dbmate = pkgs.mkShell {
         buildInputs = with pkgs; [ dbmate mysql80 mysql ];
+        # groupadd mysql
+        # useradd -r -g mysql -s /bin/false mysql
+        # cd mysql
+        # mkdir mysql-files
+        # chown mysql:mysql mysql-files
+        # chmod 750 mysql-files
+        # bin/mysqld --initialize --user=mysql
+        # bin/mysql_ssl_rsa_setup
+        # bin/mysqld_safe --user=mysql &
+      };
+
+      devShells.x86_64-linux.dbmate_mysql80 = pkgs.mkShell {
+        buildInputs = with pkgs; [ dbmate mysql80 mysql ];
+        shellHook = ''
+
+      if test -f ${mysqlDir}/data/mysqld.pid && ps -p $(cat ${mysqlDir}/data/mysqld.pid) > /dev/null; then
+        echo "Mysql already started"
+      else
+        echo "==============   Starting mysql..."
+        echo "pour activer logs mysql:"
+        echo "start-stop-daemon --stop --pidfile mysql/data/mysqld.pid"
+        echo "${pkgs.mysql}/bin/mysqld --defaults-extra-file=${mysqlConf} --general_log=1 --general_log_file=${mysqlDir}/tmp/requests.log &)"
+        echo ""
+        echo ""
+        test -e ${mysqlDir}/data/mysql || (${pkgs.mysql}/bin/mysql_install_db --basedir=${pkgs.mysql} --datadir=${mysqlDir}/data && touch ${mysqlDir}/data/initRequired)
+        ${pkgs.mysql}/bin/mysqld --defaults-extra-file=${mysqlConf} &
+        test -e ${mysqlDir}/data/initRequired && (echo "Initializing root password..." && sleep 5 && mysqladmin -uroot -h127.0.0.1 -P${cfg.mysqlPort} password "${cfg.mysqlPassword}" && rm -f ${mysqlDir}/data/initRequired)
+      fi
+    }
+  '';
+
       };
 
       devShells.x86_64-linux.default = myAppEnv.env.overrideAttrs (oldAttrs: {
-        buildInputs = with pkgs; [ gdb rr csmith mercury z3 boogie poetry python39Packages.pylint python39Packages.autopep8 ];
+        buildInputs = with pkgs; [ gdb
+                                   rr
+                                   # csmith
+                                   # z3
+                                   # boogie
+                                   poetry
+                                   python39Packages.pylint
+                                   python39Packages.autopep8 ];
       });
 
       checks.x86_64-linux = {
