@@ -90,7 +90,7 @@ CREATE TABLE `nodes` (
   `finished` tinyint(1) NOT NULL DEFAULT '0',
   UNIQUE KEY `node_id` (`node_id`),
   UNIQUE KEY `parent_node_id` (`parent_node_id`,`birth_order`),
-  CONSTRAINT `nodes_fk_1` FOREIGN KEY (`parent_node_id`) REFERENCES `nodes` (`node_id`)
+  CONSTRAINT `parent_node_exists` FOREIGN KEY (`parent_node_id`) REFERENCES `nodes` (`node_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 /*!40101 SET character_set_client = @saved_cs_client */;
 

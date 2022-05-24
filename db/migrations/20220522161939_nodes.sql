@@ -13,7 +13,8 @@ CREATE TABLE `nodes` (
   `finished` boolean NOT NULL DEFAULT false,
   unique KEY (`node_id`),
   unique KEY (`parent_node_id`, `birth_order`),
-  CONSTRAINT `nodes_fk_1` FOREIGN KEY (`parent_node_id`) REFERENCES `nodes` (`node_id`)
+  CONSTRAINT `parent_node_exists` FOREIGN KEY (`parent_node_id`) REFERENCES `nodes` (`node_id`),
+  CONSTRAINT `parent_node_id_lower_or_equal_node_id` CHECK ((`parent_node_id` <= `node_id`))
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 
 -- migrate:down

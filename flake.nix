@@ -225,7 +225,7 @@
         pkgs.stdenv.mkDerivation {
           name = "database_up_and_rollback";
 
-          buildInputs = [ self.packages.x86_64-linux.database pkgs.dbmate pkgs.mysql57 ];
+          buildInputs = [ self.packages.x86_64-linux.database pkgs.dbmate pkgs.mysql80 ];
 
           unpackPhase = "true";
 
@@ -288,7 +288,7 @@
         pkgs.stdenv.mkDerivation {
           name = "database_schema_sql_up_to_date";
 
-          buildInputs = [ self.packages.x86_64-linux.database pkgs.dbmate pkgs.mysql57 pkgs.mysql ];
+          buildInputs = [ self.packages.x86_64-linux.database pkgs.dbmate pkgs.mysql80 pkgs.mysql ];
 
           unpackPhase = "true";
 
@@ -318,7 +318,7 @@
 
 
       devShells.x86_64-linux.dbmate = pkgs.mkShell {
-        buildInputs = with pkgs; [ dbmate mysql57 mysql ];
+        buildInputs = with pkgs; [ dbmate mysql80 mysql ];
       };
 
       devShells.x86_64-linux.default = myAppEnv.env.overrideAttrs (oldAttrs: {
