@@ -7,3 +7,4 @@ tmp/
 *.txt
 .gdbinit
 restats
+__pycache__

@@ -7,11 +7,21 @@ from enum import Enum
 from functools import reduce
 from typing import Union, List, Callable, Optional, Tuple
 from time import perf_counter_ns
+import mysql.connector
 import gdb # type: ignore
 from rich.tree import Tree
 from rich import print as print_tree
 from simple_term_menu import TerminalMenu # type: ignore
 
+# Connect to the database
+cnx = mysql.connector.connect(user='root', password='ddc',
+                              host='127.0.0.1',
+                              database='ddc')
+
+## Disable constraints
+cursor = cnx.cursor()
+
+cursor.execute('delete from nodes;')
 # Constants
 
 HOST = 'localhost'
@@ -171,6 +181,7 @@ CORRECT_NODES: List[ComparableTree] = []
 PENDING_CORRECT_NODES: List[Node] = []
 tic = None
 toc = None
+node_id = -1
 # GDB Commands
 
 class CommandFinishSession(gdb.Command):
@@ -246,11 +257,30 @@ class CommandAddNodeToSession(gdb.Command):
             "add-node-to-session", gdb.COMMAND_USER)
 
     def invoke(self, arg, from_tty):
+        global node_id
+        node_id += 1
         # Variable: Symbol.is_argument
         global MY_DEBUGGING_SESSION
         arguments = [symbol for symbol in gdb.selected_frame().block() if symbol.is_argument]
         function_name = arg
         my_node = Node(function_name, gdb.selected_frame(), arguments, get_global_variables())
+        # Database insertion here
+        global cnx
+        with cnx.cursor() as cursor:
+            # Create a new record
+            if (node_id != 0):
+                sql = """INSERT INTO `nodes` (`id`,
+                `function_name`) VALUES (%s, %s)"""
+                cursor.execute(sql, (node_id, function_name))
+            else:
+                sql = """INSERT INTO `nodes` (`id`,
+                `parent_id`,
+                `function_name`) VALUES (%s, %s, %s)"""
+                cursor.execute(sql, (node_id, node_id, function_name))
+            # connection is not autocommit by default. So you must commit to save
+            # your changes.
+        cnx.commit()
+
         if MY_DEBUGGING_SESSION.node is None:
             # First node
             MY_DEBUGGING_SESSION.node = my_node
@@ -814,7 +844,7 @@ def build_tree() -> bool:
     initial_br_number = get_suspect_plus_final_br_number()
     # Reaching first suspect function, which is going to create a finish breakpoint
     total_br_number = len(gdb.breakpoints())
-    global tic, toc
+    global tic, toc, cursor, cnx
     tic = perf_counter_ns()
     while total_br_number == initial_br_number:
         gdb.execute("c")
@@ -840,6 +870,8 @@ def build_tree() -> bool:
     #print("Elapsed time during the whole program in ns:",
     #      toc-tic, 'ns')
     MY_DEBUGGING_SESSION.tree_built()
+    cursor.close()
+    cnx.close()
     return True
 
 def hit_final_breakpoint():

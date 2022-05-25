@@ -16,6 +16,7 @@ crosshair-tool = "^0.0.20"
 flit_core = "^3.7.1"
 Jinja2 = "^3.0.3"
 mysql = "^0.0.3"
+mysql-connector-python = "8.0.23"
 
 
 [tool.poetry.dev-dependencies]

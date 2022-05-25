@@ -108,7 +108,7 @@ CREATE TABLE `schema_migrations` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
--- Dumping routines for database 'nodes'
+-- Dumping routines for database 'ddc'
 --
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
