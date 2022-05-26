@@ -184,7 +184,7 @@ class Node:
 
 # Global variables
 
-MY_DEBUGGING_SESSION = DebuggingSession()
+# MY_DEBUGGING_SESSION = DebuggingSession()
 CORRECT_NODES: List[ComparableTree] = []
 PENDING_CORRECT_NODES: List[Node] = []
 ACTIVE_NODE_IDS: List[int] = []
@@ -219,17 +219,12 @@ class SaveReturningNode(gdb.Command):
         finishing_node_id = ACTIVE_NODE_IDS.pop(-1)
         arguments = [symbol for symbol in gdb.newest_frame().block()
                      if symbol.is_argument]
-        my_node = get_unfinished_node_from_frame(
-            MY_DEBUGGING_SESSION.node, gdb.newest_frame())
-        # assert my_node.frame == gdb.newest_frame()
-        object_state_when_returning, object_state_when_returning_tree = get_object_from_arguments(
+        _, object_state_when_returning_tree = get_object_from_arguments(
             "object state when returning = ",
             arguments,
             gdb.selected_frame())
-        my_node.finish(arguments=arguments)
         # Database insertion here
         global cnx
-        print("Finishing node " + str(finishing_node_id))
         with cnx.cursor() as cursor:
             sql = """Update nodes set finished = true,
             object_when_returning = %s
@@ -295,20 +290,15 @@ class CommandAddNodeToSession(gdb.Command):
         global node_id
         node_id += 1
         # Variable: Symbol.is_argument
-        global MY_DEBUGGING_SESSION
-        global ACTIVE_NODE_IDS
-        arguments = [symbol for symbol in gdb.selected_frame().block() if symbol.is_argument]
         function_name = arg
-
-        my_node = Node(function_name, gdb.selected_frame(), arguments, get_global_variables())
+        arguments = [symbol for symbol in gdb.selected_frame().block() if symbol.is_argument]
         # Database insertion here
         global cnx
         object_state_on_entry, object_state_on_entry_tree = get_object_from_arguments(
             "object state on entry = ",
             arguments,
             gdb.selected_frame())
-        if object_state_on_entry_tree:
-            print(object_state_on_entry_tree.to_json())
+        global ACTIVE_NODE_IDS
         with cnx.cursor() as cursor:
             # Create a new record for root node
             if (node_id == 0):
@@ -346,20 +336,13 @@ class CommandAddNodeToSession(gdb.Command):
                                  node_id,
                                  "global_variables_on_entry",
                                  gdb.selected_frame())
-            # connection is not autocommit by default. So you must commit to save
-            # your changes.
+        # connection is not autocommit by default. So you must commit to save
+        # your changes.
         cnx.commit()
+
         ACTIVE_NODE_IDS.append(node_id)
-        if MY_DEBUGGING_SESSION.node is None:
-            # First node
-            MY_DEBUGGING_SESSION.node = my_node
-            position = []
-        else:
-            position = add_node_to_tree(MY_DEBUGGING_SESSION.node, my_node, [])
-        my_node.position = position
-        update_nodes_weight(MY_DEBUGGING_SESSION.node, position, 1)
         if not arg.startswith("main"):
-            MyFinishBreakpoint(position)
+            MyFinishBreakpoint()
 
 CommandAddNodeToSession()
 
@@ -555,29 +538,25 @@ class SetReferenceBreak(gdb.Breakpoint):
 # Finish breakpoints
 
 class MyFinishBreakpoint(gdb.FinishBreakpoint):
-    def __init__(self, position):
+    def __init__(self):
         super(MyFinishBreakpoint, self).__init__()
-        self.position = position
         self.commands = ("save-returning-node")
         self.silent = True
 
     def stop(self):
-        global MY_DEBUGGING_SESSION
-        my_node = get_node_from_position(MY_DEBUGGING_SESSION.node, self.position)
         finishing_node_id = ACTIVE_NODE_IDS[-1]
-        print("We got returning value!!!!!!!!!!!!")
-        my_node.return_value = self.return_value
         global cnx
-        print("Finishing node " + str(finishing_node_id))
-        return_value_tree = ComparableTree("return value")
-        return_value_tree.add(self.return_value.format_string())
+        if self.return_value:
+            return_value_tree = ComparableTree("return value")
+            return_value_tree.add(self.return_value.format_string())
+            return_value_tree = return_value_tree.to_json()
+        else:
+            return_value_tree = None
         with cnx.cursor() as cursor:
             sql = """Update nodes set return_value = %s
             where id = %s"""
             print(sql)
-            cursor.execute(sql, (return_value_tree.to_json()
-                                 if return_value_tree
-                                 else None,
+            cursor.execute(sql, (return_value_tree,
                                  finishing_node_id))
         return True
 
@@ -974,9 +953,9 @@ def build_tree() -> bool:
             cursor.execute(sql)
         cnx.commit()
     toc = perf_counter_ns()
-    file1 = open("tree_building_ns.txt", "a")  # append mode
-    file1.write(str(MY_DEBUGGING_SESSION.node.weight) + " " + str(toc-tic) + "\n")
-    file1.close()
+    #file1 = open("tree_building_ns.txt", "a")  # append mode
+    #file1.write(str(MY_DEBUGGING_SESSION.node.weight) + " " + str(toc-tic) + "\n")
+    #file1.close()
     #gdb.execute("quit")
     #print("Elapsed time during the whole program in ns:",
     #      toc-tic, 'ns')
