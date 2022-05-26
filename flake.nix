@@ -179,7 +179,7 @@
           src = self;
           dontStrip = true;
           buildPhase = "gcc -O0 -g -o car ./car.cpp -lstdc++";
-          installPhase = "mkdir -p $out/tests; install -t $out/tests car";
+          installPhase = "mkdir -p $out/bin; install -t $out/bin car";
         };
 
       packages.x86_64-linux.fibonacci =
