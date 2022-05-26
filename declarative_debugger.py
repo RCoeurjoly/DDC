@@ -161,8 +161,8 @@ class Node:
         pointer_or_ref_args = get_pointer_or_ref(arguments, self.frame)
         args_root = ComparableTree("arguments when returning")
         self.arguments_when_returning, self.arguments_when_returning_tree = get_symbol_trees_from_symbols(args_root,
-                                                                                                    pointer_or_ref_args,
-                                                                                                    self.frame)
+                                                                                                          pointer_or_ref_args,
+                                                                                                          self.frame)
         self.global_variables_when_returning, self.global_variables_when_returning_tree = None, None
         global_variables_root = ComparableTree("global variables when returning")
         self.global_variables_when_returning, self.global_variables_when_returning_tree = get_symbol_trees_from_symbols(
@@ -222,22 +222,25 @@ class SaveReturningNode(gdb.Command):
         my_node = get_unfinished_node_from_frame(
             MY_DEBUGGING_SESSION.node, gdb.newest_frame())
         # assert my_node.frame == gdb.newest_frame()
+        object_state_when_returning, object_state_when_returning_tree = get_object_from_arguments(
+            "object state when returning = ",
+            arguments,
+            gdb.selected_frame())
         my_node.finish(arguments=arguments)
         # Database insertion here
         global cnx
         print("Finishing node " + str(finishing_node_id))
         with cnx.cursor() as cursor:
-            sql = ""
-            if my_node.return_value:
-                sql = """Update nodes set finished = true,
-                return_value = '{return_value}' where id = {id}""".format(id = finishing_node_id,
-                                                                          return_value = my_node.return_value_tree.to_json())
-            else:
-                sql = """Update nodes set finished = true where id = {id}""".format(id = finishing_node_id)
+            sql = """Update nodes set finished = true,
+            object_when_returning = %s
+            where id = %s"""
             print(sql)
-            cursor.execute(sql)
+            cursor.execute(sql, (object_state_when_returning_tree.to_json()
+                                 if object_state_when_returning_tree
+                                 else None,
+                                 finishing_node_id))
             insert_symbols_in_db(cursor,
-                                 arguments,
+                                 get_pointer_or_ref(arguments, gdb.selected_frame()),
                                  finishing_node_id,
                                  "arguments_when_returning",
                                  gdb.selected_frame())
@@ -300,20 +303,38 @@ class CommandAddNodeToSession(gdb.Command):
         my_node = Node(function_name, gdb.selected_frame(), arguments, get_global_variables())
         # Database insertion here
         global cnx
+        object_state_on_entry, object_state_on_entry_tree = get_object_from_arguments(
+            "object state on entry = ",
+            arguments,
+            gdb.selected_frame())
+        if object_state_on_entry_tree:
+            print(object_state_on_entry_tree.to_json())
         with cnx.cursor() as cursor:
-            # Create a new record
+            # Create a new record for root node
             if (node_id == 0):
                 sql = """INSERT INTO `nodes` (`id`,
                 `parent_id`,
-                `function_name`) VALUES (%s, %s, %s)"""
-                cursor.execute(sql, (node_id, node_id, function_name))
+                `object_on_entry`,
+                `function_name`) VALUES (%s, %s, %s, %s)"""
+                cursor.execute(sql,
+                               (node_id,
+                                node_id,
+                                object_state_on_entry_tree.to_json()
+                                if object_state_on_entry_tree
+                                else None,
+                                function_name))
             else:
+                # Create a new record for non root node
                 sql = """INSERT INTO `nodes` (`id`,
                 `parent_id`,
-                `function_name`) VALUES (%s, %s, %s)"""
+                `object_on_entry`,
+                `function_name`) VALUES (%s, %s, %s, %s)"""
                 cursor.execute(sql,
                                (node_id,
                                 ACTIVE_NODE_IDS[-1],
+                                object_state_on_entry_tree.to_json()
+                                if object_state_on_entry_tree
+                                else None,
                                 function_name))
             insert_symbols_in_db(cursor,
                                  arguments,
@@ -543,8 +564,21 @@ class MyFinishBreakpoint(gdb.FinishBreakpoint):
     def stop(self):
         global MY_DEBUGGING_SESSION
         my_node = get_node_from_position(MY_DEBUGGING_SESSION.node, self.position)
+        finishing_node_id = ACTIVE_NODE_IDS[-1]
         print("We got returning value!!!!!!!!!!!!")
         my_node.return_value = self.return_value
+        global cnx
+        print("Finishing node " + str(finishing_node_id))
+        return_value_tree = ComparableTree("return value")
+        return_value_tree.add(self.return_value.format_string())
+        with cnx.cursor() as cursor:
+            sql = """Update nodes set return_value = %s
+            where id = %s"""
+            print(sql)
+            cursor.execute(sql, (return_value_tree.to_json()
+                                 if return_value_tree
+                                 else None,
+                                 finishing_node_id))
         return True
 
 class MyReferenceFinishBreakpoint(gdb.FinishBreakpoint):
