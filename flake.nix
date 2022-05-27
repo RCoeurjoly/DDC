@@ -111,29 +111,33 @@
           name = "benchmarks";
           src = self;
           dontStrip = true;
-          buildInputs = [ gdb rr ];
+          nativeBuildInputs = [ pkgs.gdb pkgs.rr ];
           installPhase = ''
           mkdir -p $out;
           touch $out/execution_time.txt;
           touch $out/recording_time.txt;
-          for i in {1..17}
+          for exponent in {1..17}
           do
              input_vector=""
-             power_i=$((2 ** $i))
-             for j in $( eval echo {1..$power_i})
+             list_length=$((2 ** $exponent))
+             for j in $( eval echo {1..$list_length})
              do
                 input_vector+=" $RANDOM"
              done
-             START="$(date +%s%N)"
-             ${self.packages.x86_64-linux.quicksort_benchmarks.outPath}/bin/quicksort_benchmarks $input_vector
-             DURATION=$[ $(date +%s%N) - $START ]
-             echo $power_i $DURATION >> $out/execution_time.txt
-             START="$(date +%s%N)"
-             #${rr}/bin/rr record ${self.packages.x86_64-linux.quicksort_benchmarks.outPath}/bin/quicksort_benchmarks $input_vector
-             rr record ${self.packages.x86_64-linux.quicksort_benchmarks.outPath}/bin/quicksort_benchmarks
-             DURATION=$[ $(date +%s%N) - $START ]
-             echo $power_i $DURATION >> $out/recording_time.txt
+             for iteration in {1..10}
+             do
+              START="$(date +%s%N)"
+              ${self.packages.x86_64-linux.quicksort_benchmarks.outPath}/bin/quicksort_benchmarks $input_vector
+              DURATION=$[ $(date +%s%N) - $START ]
+              echo "$list_length" $DURATION >> $out/execution_time.txt
+              START="$(date +%s%N)"
+              rr record -o $out/traces_"$exponent"_"$iteration" ${self.packages.x86_64-linux.quicksort_benchmarks.outPath}/bin/quicksort_benchmarks $input_vector
+              #rr record ${self.packages.x86_64-linux.quicksort_benchmarks.outPath}/bin/quicksort_benchmarks
+              DURATION=$[ $(date +%s%N) - $START ]
+              echo "$list_length" $DURATION >> $out/recording_time.txt
+             done
           done
+          rm -rf $out/traces_*
           '';
         };
 
