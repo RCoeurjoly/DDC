@@ -116,7 +116,7 @@
           mkdir -p $out;
           touch $out/execution_time.txt;
           touch $out/recording_time.txt;
-          for exponent in {1..17}
+          for exponent in {1..1}
           do
              input_vector=""
              list_length=$((2 ** $exponent))
@@ -124,7 +124,7 @@
              do
                 input_vector+=" $RANDOM"
              done
-             for iteration in {1..10}
+             for iteration in {1..1}
              do
               START="$(date +%s%N)"
               ${self.packages.x86_64-linux.quicksort_benchmarks.outPath}/bin/quicksort_benchmarks $input_vector
@@ -132,12 +132,11 @@
               echo "$list_length" $DURATION >> $out/execution_time.txt
               START="$(date +%s%N)"
               rr record -o $out/traces_"$exponent"_"$iteration" ${self.packages.x86_64-linux.quicksort_benchmarks.outPath}/bin/quicksort_benchmarks $input_vector
-              #rr record ${self.packages.x86_64-linux.quicksort_benchmarks.outPath}/bin/quicksort_benchmarks
               DURATION=$[ $(date +%s%N) - $START ]
               echo "$list_length" $DURATION >> $out/recording_time.txt
+              rr replay $out/traces_"$exponent"_"$iteration"
              done
           done
-          rm -rf $out/traces_*
           '';
         };
 

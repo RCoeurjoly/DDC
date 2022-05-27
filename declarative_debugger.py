@@ -214,7 +214,9 @@ class SaveReturningNode(gdb.Command):
             "save-returning-node", gdb.COMMAND_USER)
 
     def invoke(self, arg, from_tty):
+        print("Doing the reversing!!!!!!!!!!!")
         gdb.execute("reverse-step") # To execute this command, rr is needed
+        print("!!!!!!!!!!!!!Reversing done")
         global ACTIVE_NODE_IDS
         finishing_node_id = ACTIVE_NODE_IDS.pop(-1)
         arguments = [symbol for symbol in gdb.newest_frame().block()
@@ -426,8 +428,7 @@ class StartDeclarativeDebuggingSession(gdb.Command):
 StartDeclarativeDebuggingSession()
 
 class TilTheEnd(gdb.Command):
-    """Set breakpoint on setField from Quickfix. It takes the tag number as argument"""
-
+    """Goes to the end"""
     def __init__(self):
         super(TilTheEnd, self).__init__(
             "til-the-end", gdb.COMMAND_USER)
@@ -435,18 +436,28 @@ class TilTheEnd(gdb.Command):
     def invoke(self, arg, from_tty):
         initial_br_number = len([breakpoint for breakpoint in gdb.breakpoints()
                                  if breakpoint.commands.startswith("add-node-to-correct-list")])
-        # Reaching first correct function, which is going to create a finish breakpoint
         total_br_number = len(gdb.breakpoints())
         while total_br_number == initial_br_number:
             gdb.execute("c")
             total_br_number = len(gdb.breakpoints())
-        # The sum of hit_count of all correct nodes should be greater than 0
-        # assert reduce(lambda x, y: x + y, [breakpoint.hit_count for breakpoint in gdb.breakpoints() if breakpoint.commands.startswith("add-node-to-correct-list")]) > 0
         while gdb.selected_inferior().pid != 0:
             gdb.execute("c")
             total_br_number = len(gdb.breakpoints())
 
 TilTheEnd()
+
+class TilTheEndSimple(gdb.Command):
+    """Goes to the end"""
+    def __init__(self):
+        super(TilTheEndSimple, self).__init__(
+            "til-the-end-simple", gdb.COMMAND_USER)
+
+    def invoke(self, arg, from_tty):
+        while gdb.selected_inferior().pid != 0:
+            gdb.execute("cont")
+
+TilTheEndSimple()
+
 
 class ListenForCorrectNodes(gdb.Command):
 
