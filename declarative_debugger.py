@@ -1,4 +1,5 @@
 import json
+import sys
 import socket
 import pickle
 import cProfile
@@ -7,7 +8,7 @@ from enum import Enum
 from functools import reduce
 from typing import Union, List, Callable, Optional, Tuple
 from time import perf_counter_ns
-from datetime import datetime, timedelta
+from datetime import datetime
 import mysql.connector
 import gdb # type: ignore
 from rich.tree import Tree
@@ -22,8 +23,6 @@ cnx = mysql.connector.connect(user='root', password='ddc',
 ## Disable constraints
 cursor = cnx.cursor()
 
-cursor.execute('set foreign_key_checks=0;')
-cursor.execute('ALTER TABLE nodes drop CONSTRAINT root_parent_id_zero_otherwise_lower_than_id;')
 cursor.execute('delete from global_variables_when_returning;')
 cursor.execute('delete from global_variables_on_entry;')
 cursor.execute('delete from arguments_when_returning;')
@@ -47,7 +46,6 @@ class ComparableTree(Tree):
 
 class DebuggingSession:
     def __init__(self) -> None:
-        self.node = None
         self.started = False
         self.is_tree_built = False
 
@@ -170,7 +168,7 @@ class Node:
         global_variables_root = ComparableTree("global variables when returning")
         self.global_variables_when_returning, self.global_variables_when_returning_tree = get_symbol_trees_from_symbols(
             global_variables_root,
-            get_global_variables(),
+            get_global_variables(self.frame),
             self.frame)
         self.object_state_when_returning, self.object_state_when_returning_tree = get_object_from_arguments(
             "object state when returning = ",
@@ -187,7 +185,7 @@ class Node:
 
 # Global variables
 
-# MY_DEBUGGING_SESSION = DebuggingSession()
+MY_DEBUGGING_SESSION = DebuggingSession()
 CORRECT_NODES: List[ComparableTree] = []
 PENDING_CORRECT_NODES: List[Node] = []
 ACTIVE_NODE_IDS: List[int] = []
@@ -225,31 +223,31 @@ class SaveReturningNode(gdb.Command):
 
     def invoke(self, arg, from_tty):
         gdb.execute("reverse-step") # To execute this command, rr is needed
+        frame = gdb.newest_frame()
         global ACTIVE_NODE_IDS
         finishing_node_id = ACTIVE_NODE_IDS.pop(-1)
-        arguments = [symbol for symbol in gdb.newest_frame().block()
+        arguments = [symbol for symbol in frame.block()
                      if symbol.is_argument]
-        _, object_state_when_returning_tree = get_object_from_arguments(
-            "object state when returning = ",
-            arguments,
+        object_state_when_returning = get_value_from_symbol(
+            get_object_from_arguments(arguments),
             gdb.selected_frame())
         # We gather update tuples
         global UPDATE_NODE_TUPLES
         global INSERT_ARGUMENTS_WHEN_RETURNING_TUPLES
         global INSERT_GLOBAL_VARIABLES_WHEN_RETURNING_TUPLES
-        UPDATE_NODE_TUPLES.append((object_state_when_returning_tree.to_json()
-                                   if object_state_when_returning_tree
-                                   else None,
+        UPDATE_NODE_TUPLES.append((object_state_when_returning,
                                    datetime.now(),
                                    finishing_node_id))
-        INSERT_ARGUMENTS_WHEN_RETURNING_TUPLES += insert_symbols_in_db(
-            get_pointer_or_ref(arguments, gdb.selected_frame()),
-            node_id,
-            gdb.selected_frame())
-        INSERT_GLOBAL_VARIABLES_WHEN_RETURNING_TUPLES += insert_symbols_in_db(
-            get_global_variables(),
-            node_id,
-            gdb.selected_frame())
+        INSERT_ARGUMENTS_WHEN_RETURNING_TUPLES += [(finishing_node_id, ) + tuple
+                                                   for tuple in
+                                                   get_name_value_tuple_from_symbols(
+                                                       get_pointer_or_ref(arguments, frame),
+                                                       frame)]
+        INSERT_GLOBAL_VARIABLES_WHEN_RETURNING_TUPLES += [(finishing_node_id, ) + tuple
+                                                          for tuple in
+                                                          get_name_value_tuple_from_symbols(
+                                                              get_global_variables(frame),
+                                                              frame)]
         gdb.execute("n")
 
 SaveReturningNode()
@@ -292,14 +290,13 @@ class CommandAddNodeToSession(gdb.Command):
             "add-node-to-session", gdb.COMMAND_USER)
 
     def invoke(self, arg, from_tty):
+        frame = gdb.selected_frame()
         global node_id
         node_id += 1
-        # Variable: Symbol.is_argument
         function_name = arg
-        arguments = [symbol for symbol in gdb.selected_frame().block() if symbol.is_argument]
-        object_state_on_entry, object_state_on_entry_tree = get_object_from_arguments(
-            "object state on entry = ",
-            arguments,
+        arguments = [symbol for symbol in frame.block() if symbol.is_argument]
+        object_state_on_entry = get_value_from_symbol(
+            get_object_from_arguments(arguments),
             gdb.selected_frame())
         global ACTIVE_NODE_IDS
         global INSERT_NODE_TUPLES
@@ -310,21 +307,20 @@ class CommandAddNodeToSession(gdb.Command):
                         node_id
                         if node_id == 0
                         else ACTIVE_NODE_IDS[-1],
-                        object_state_on_entry_tree.to_json()
-                        if object_state_on_entry_tree
-                        else None,
+                        object_state_on_entry,
                         function_name,
-                        datetime.now()-timedelta(days=1))
+                        datetime.now())
         INSERT_NODE_TUPLES.append(insert_tuple)
-        INSERT_ARGUMENTS_ON_ENTRY_TUPLES += insert_symbols_in_db(
-            arguments,
-            node_id,
-            gdb.selected_frame())
-        INSERT_GLOBAL_VARIABLES_ON_ENTRY_TUPLES += insert_symbols_in_db(
-            get_global_variables(),
-            node_id,
-            gdb.selected_frame())
-
+        INSERT_ARGUMENTS_ON_ENTRY_TUPLES += [(node_id, ) + tuple
+                                             for tuple in
+                                             get_name_value_tuple_from_symbols(
+                                                 arguments,
+                                                 frame)]
+        INSERT_GLOBAL_VARIABLES_ON_ENTRY_TUPLES += [(node_id, ) + tuple
+                                                    for tuple in
+                                                    get_name_value_tuple_from_symbols(
+                                                        get_global_variables(frame),
+                                                        frame)]
         ACTIVE_NODE_IDS.append(node_id)
         if not arg.startswith("main"):
             MyFinishBreakpoint()
@@ -438,6 +434,16 @@ class TilTheEndSimple(gdb.Command):
     def invoke(self, arg, from_tty):
         while gdb.selected_inferior().pid != 0:
             gdb.execute("cont")
+
+TilTheEndSimple()
+
+class InsertIntoDatabase(gdb.Command):
+    """Inserts nodes into database"""
+    def __init__(self):
+        super(InsertIntoDatabase, self).__init__(
+            "insert-into-database", gdb.COMMAND_USER)
+
+    def invoke(self, arg, from_tty):
         global cnx
         global INSERT_NODE_TUPLES
         global INSERT_ARGUMENTS_ON_ENTRY_TUPLES
@@ -450,43 +456,65 @@ class TilTheEndSimple(gdb.Command):
         with cnx.cursor() as cursor:
             # Inserting nodes
             sql = """INSERT INTO `nodes` (`id`,
-                `parent_id`,
-                `object_on_entry`,
-                `function_name`,
-                `creation_time`) VALUES (%s, %s, %s, %s, %s)"""
-            cursor.executemany(sql, INSERT_NODE_TUPLES)
+            `parent_id`,
+            `object_on_entry`,
+            `function_name`,
+            `creation_time`) VALUES (%s, %s, %s, %s, %s)"""
+            cursor.executemany(sql, [(my_tuple[0],
+                                      my_tuple[1],
+                                      print_value(my_tuple[2]),
+                                      my_tuple[3],
+                                      my_tuple[4])
+                                for my_tuple in INSERT_NODE_TUPLES])
             # Inserting arguments and global variables on entry
             sql = """INSERT INTO arguments_on_entry (`node_id`,
             `name`,
             `value`) VALUES (%s, %s, %s)"""
-            cursor.executemany(sql, INSERT_ARGUMENTS_ON_ENTRY_TUPLES)
+            cursor.executemany(sql,
+                               [(my_tuple[0],
+                                 my_tuple[1],
+                                 print_value(my_tuple[2]))
+                                for my_tuple in INSERT_ARGUMENTS_ON_ENTRY_TUPLES])
             sql = """INSERT INTO global_variables_on_entry (`node_id`,
             `name`,
             `value`) VALUES (%s, %s, %s)"""
-            cursor.executemany(sql, INSERT_GLOBAL_VARIABLES_ON_ENTRY_TUPLES)
+            cursor.executemany(sql, [(my_tuple[0],
+                                      my_tuple[1],
+                                      print_value(my_tuple[2]))
+                                     for my_tuple in INSERT_GLOBAL_VARIABLES_ON_ENTRY_TUPLES])
             # Update return value
             sql = """Update nodes set return_value = %s
             where id = %s"""
-            cursor.executemany(sql, UPDATE_RETURN_VALUE_TUPLES)
+            cursor.executemany(sql, [(print_value(my_tuple[0]),
+                                      my_tuple[1])
+                                     for my_tuple in UPDATE_RETURN_VALUE_TUPLES])
             # Update node
             sql = """Update nodes set finished = true,
             object_when_returning = %s,
             finishing_time = %s
             where id = %s"""
-            cursor.executemany(sql, UPDATE_NODE_TUPLES)
+            cursor.executemany(sql, [(print_value(my_tuple[0]),
+                                      my_tuple[1],
+                                      my_tuple[2])
+                                     for my_tuple in UPDATE_NODE_TUPLES])
             # Insert arguments and global variables when returning
             sql = """INSERT INTO arguments_when_returning (`node_id`,
             `name`,
             `value`) VALUES (%s, %s, %s)"""
-            cursor.executemany(sql, INSERT_ARGUMENTS_WHEN_RETURNING_TUPLES)
+            cursor.executemany(sql, [(my_tuple[0],
+                                      my_tuple[1],
+                                      print_value(my_tuple[2]))
+                                     for my_tuple in INSERT_ARGUMENTS_WHEN_RETURNING_TUPLES])
             sql = """INSERT INTO global_variables_when_returning (`node_id`,
             `name`,
             `value`) VALUES (%s, %s, %s)"""
-            cursor.executemany(sql, INSERT_GLOBAL_VARIABLES_WHEN_RETURNING_TUPLES)
+            cursor.executemany(sql, [(my_tuple[0],
+                                      my_tuple[1],
+                                      print_value(my_tuple[2]))
+                                     for my_tuple in INSERT_GLOBAL_VARIABLES_WHEN_RETURNING_TUPLES])
         cnx.commit()
 
-
-TilTheEndSimple()
+InsertIntoDatabase()
 
 
 class ListenForCorrectNodes(gdb.Command):
@@ -588,12 +616,11 @@ class MyFinishBreakpoint(gdb.FinishBreakpoint):
         finishing_node_id = ACTIVE_NODE_IDS[-1]
         global UPDATE_RETURN_VALUE_TUPLES
         if self.return_value:
-            return_value_tree = ComparableTree("return value")
-            return_value_tree.add(self.return_value.format_string())
-            return_value_tree = return_value_tree.to_json()
+            return_value = recursive_dereference(self.return_value)
+            return_value.fetch_lazy()
         else:
-            return_value_tree = None
-        UPDATE_RETURN_VALUE_TUPLES.append((return_value_tree,
+            return_value = None
+        UPDATE_RETURN_VALUE_TUPLES.append((return_value,
                                            finishing_node_id))
         return True
 
@@ -610,25 +637,44 @@ class MyReferenceFinishBreakpoint(gdb.FinishBreakpoint):
         return True
 
 # Functions
+def print_value(value):
+    if value:
+        return str(value.format_string(
+            raw=False,
+            pretty_arrays=True,
+            pretty_structs=True,
+            array_indexes=True,
+            symbols=True,
+            deref_refs=True))
+    return None
 
-def insert_symbols_in_db(symbols, node_id, frame):
+def recursive_dereference(value):
+    if value.type.code == gdb.TYPE_CODE_PTR:
+        return recursive_dereference(value.dereference())
+    return value
+
+def get_value_from_symbol(symbol, frame):
     """
     This works for arguments to functions and global variables
     """
-    my_symbols = []
+    if symbol:
+        assert(symbol.is_valid())
+        my_value = symbol.value(frame)
+        my_true_value = recursive_dereference(my_value)
+        my_true_value.fetch_lazy()
+        return my_true_value
+    return None
+
+def get_name_value_tuple_from_symbols(symbols, frame):
+    """
+    This works for arguments to functions and global variables
+    """
+    my_symbols = set()
     for symbol in symbols:
+        assert(symbol.is_valid())
         if symbol.print_name != "this":
-            if symbol.value(frame).type.code == gdb.TYPE_CODE_PTR:
-                symbol_value = str(symbol.value(frame).dereference())
-            else:
-                symbol_value = str(symbol.value(frame).format_string(
-                    raw=False,
-                    pretty_arrays=True,
-                    pretty_structs=True,
-                    array_indexes=True,
-                    symbols=True,
-                    deref_refs=True))
-            my_symbols.append((node_id, symbol.print_name, symbol_value))
+            my_value = get_value_from_symbol(symbol, frame)
+            my_symbols.add((symbol.print_name, my_value))
     return my_symbols
 
 def buggy_node_found(marked_execution_tree: Node) -> bool:
@@ -1124,30 +1170,16 @@ def get_symbol_trees_from_symbols(tree_root, symbols, frame):
             pass
     return non_object_symbols, symbols_tree
 
-def get_object_from_arguments(tree_name, arguments, frame):
-    if not arguments:
-        return None, None
-    # assert frame.is_valid()
+def get_object_from_arguments(arguments):
     object_argument = [argument for argument in arguments if argument.print_name == "this"]
     # There are arguments to the function/method, no object
     if not object_argument:
-        return None, None
-    object_branch = tree_name
-    my_object = object_argument[0]
-    if my_object.value(frame).type.code == gdb.TYPE_CODE_PTR:
-        object_branch += str(my_object.value(frame).dereference())
-    else:
-        object_branch += str(my_object.value(frame).format_string(
-            raw=False,
-            pretty_arrays=True,
-            pretty_structs=True,
-            array_indexes=True,
-            symbols=True,
-            deref_refs=True))
-    return my_object, ComparableTree(object_branch)
+        return None
+    assert(len(object_argument) == 1)
+    return object_argument[0]
 
-def get_global_variables():
-    symbol_names = [symbol.name for symbol in gdb.newest_frame().find_sal().symtab.global_block()]
+def get_global_variables(frame):
+    symbol_names = [symbol.name for symbol in frame.find_sal().symtab.global_block()]
     global_variables = []
     for symbol_name in symbol_names:
         global_variable = gdb.lookup_global_symbol(symbol_name)
