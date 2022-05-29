@@ -7,6 +7,7 @@ from enum import Enum
 from functools import reduce
 from typing import Union, List, Callable, Optional, Tuple
 from time import perf_counter_ns
+from datetime import datetime, timedelta
 import mysql.connector
 import gdb # type: ignore
 from rich.tree import Tree
@@ -21,6 +22,8 @@ cnx = mysql.connector.connect(user='root', password='ddc',
 ## Disable constraints
 cursor = cnx.cursor()
 
+cursor.execute('set foreign_key_checks=0;')
+cursor.execute('ALTER TABLE nodes drop CONSTRAINT root_parent_id_zero_otherwise_lower_than_id;')
 cursor.execute('delete from global_variables_when_returning;')
 cursor.execute('delete from global_variables_on_entry;')
 cursor.execute('delete from arguments_when_returning;')
@@ -188,6 +191,13 @@ class Node:
 CORRECT_NODES: List[ComparableTree] = []
 PENDING_CORRECT_NODES: List[Node] = []
 ACTIVE_NODE_IDS: List[int] = []
+INSERT_NODE_TUPLES = []
+INSERT_ARGUMENTS_ON_ENTRY_TUPLES = []
+INSERT_GLOBAL_VARIABLES_ON_ENTRY_TUPLES = []
+UPDATE_RETURN_VALUE_TUPLES = []
+UPDATE_NODE_TUPLES = []
+INSERT_ARGUMENTS_WHEN_RETURNING_TUPLES = []
+INSERT_GLOBAL_VARIABLES_WHEN_RETURNING_TUPLES = []
 tic = None
 toc = None
 node_id = -1
@@ -214,9 +224,7 @@ class SaveReturningNode(gdb.Command):
             "save-returning-node", gdb.COMMAND_USER)
 
     def invoke(self, arg, from_tty):
-        print("Doing the reversing!!!!!!!!!!!")
         gdb.execute("reverse-step") # To execute this command, rr is needed
-        print("!!!!!!!!!!!!!Reversing done")
         global ACTIVE_NODE_IDS
         finishing_node_id = ACTIVE_NODE_IDS.pop(-1)
         arguments = [symbol for symbol in gdb.newest_frame().block()
@@ -225,28 +233,23 @@ class SaveReturningNode(gdb.Command):
             "object state when returning = ",
             arguments,
             gdb.selected_frame())
-        # Database insertion here
-        global cnx
-        with cnx.cursor() as cursor:
-            sql = """Update nodes set finished = true,
-            object_when_returning = %s
-            where id = %s"""
-            print(sql)
-            cursor.execute(sql, (object_state_when_returning_tree.to_json()
-                                 if object_state_when_returning_tree
-                                 else None,
-                                 finishing_node_id))
-            insert_symbols_in_db(cursor,
-                                 get_pointer_or_ref(arguments, gdb.selected_frame()),
-                                 finishing_node_id,
-                                 "arguments_when_returning",
-                                 gdb.selected_frame())
-            insert_symbols_in_db(cursor,
-                                 get_global_variables(),
-                                 finishing_node_id,
-                                 "global_variables_when_returning",
-                                 gdb.selected_frame())
-        cnx.commit()
+        # We gather update tuples
+        global UPDATE_NODE_TUPLES
+        global INSERT_ARGUMENTS_WHEN_RETURNING_TUPLES
+        global INSERT_GLOBAL_VARIABLES_WHEN_RETURNING_TUPLES
+        UPDATE_NODE_TUPLES.append((object_state_when_returning_tree.to_json()
+                                   if object_state_when_returning_tree
+                                   else None,
+                                   datetime.now(),
+                                   finishing_node_id))
+        INSERT_ARGUMENTS_WHEN_RETURNING_TUPLES += insert_symbols_in_db(
+            arguments,
+            node_id,
+            gdb.selected_frame())
+        INSERT_GLOBAL_VARIABLES_WHEN_RETURNING_TUPLES += insert_symbols_in_db(
+            get_global_variables(),
+            node_id,
+            gdb.selected_frame())
         gdb.execute("n")
 
 SaveReturningNode()
@@ -294,53 +297,33 @@ class CommandAddNodeToSession(gdb.Command):
         # Variable: Symbol.is_argument
         function_name = arg
         arguments = [symbol for symbol in gdb.selected_frame().block() if symbol.is_argument]
-        # Database insertion here
-        global cnx
         object_state_on_entry, object_state_on_entry_tree = get_object_from_arguments(
             "object state on entry = ",
             arguments,
             gdb.selected_frame())
         global ACTIVE_NODE_IDS
-        with cnx.cursor() as cursor:
-            # Create a new record for root node
-            if (node_id == 0):
-                sql = """INSERT INTO `nodes` (`id`,
-                `parent_id`,
-                `object_on_entry`,
-                `function_name`) VALUES (%s, %s, %s, %s)"""
-                cursor.execute(sql,
-                               (node_id,
-                                node_id,
-                                object_state_on_entry_tree.to_json()
-                                if object_state_on_entry_tree
-                                else None,
-                                function_name))
-            else:
-                # Create a new record for non root node
-                sql = """INSERT INTO `nodes` (`id`,
-                `parent_id`,
-                `object_on_entry`,
-                `function_name`) VALUES (%s, %s, %s, %s)"""
-                cursor.execute(sql,
-                               (node_id,
-                                ACTIVE_NODE_IDS[-1],
-                                object_state_on_entry_tree.to_json()
-                                if object_state_on_entry_tree
-                                else None,
-                                function_name))
-            insert_symbols_in_db(cursor,
-                                 arguments,
-                                 node_id,
-                                 "arguments_on_entry",
-                                 gdb.selected_frame())
-            insert_symbols_in_db(cursor,
-                                 get_global_variables(),
-                                 node_id,
-                                 "global_variables_on_entry",
-                                 gdb.selected_frame())
-        # connection is not autocommit by default. So you must commit to save
-        # your changes.
-        cnx.commit()
+        global INSERT_NODE_TUPLES
+        global INSERT_ARGUMENTS_ON_ENTRY_TUPLES
+        global INSERT_GLOBAL_VARIABLES_ON_ENTRY_TUPLES
+        # Get tuples of new insertion
+        insert_tuple = (node_id,
+                        node_id
+                        if node_id == 0
+                        else ACTIVE_NODE_IDS[-1],
+                        object_state_on_entry_tree.to_json()
+                        if object_state_on_entry_tree
+                        else None,
+                        function_name,
+                        datetime.now()-timedelta(days=1))
+        INSERT_NODE_TUPLES.append(insert_tuple)
+        INSERT_ARGUMENTS_ON_ENTRY_TUPLES += insert_symbols_in_db(
+            arguments,
+            node_id,
+            gdb.selected_frame())
+        INSERT_GLOBAL_VARIABLES_ON_ENTRY_TUPLES += insert_symbols_in_db(
+            get_global_variables(),
+            node_id,
+            gdb.selected_frame())
 
         ACTIVE_NODE_IDS.append(node_id)
         if not arg.startswith("main"):
@@ -455,6 +438,53 @@ class TilTheEndSimple(gdb.Command):
     def invoke(self, arg, from_tty):
         while gdb.selected_inferior().pid != 0:
             gdb.execute("cont")
+        global cnx
+        global INSERT_NODE_TUPLES
+        global INSERT_ARGUMENTS_ON_ENTRY_TUPLES
+        global INSERT_GLOBAL_VARIABLES_ON_ENTRY_TUPLES
+
+        global UPDATE_RETURN_VALUE_TUPLES
+        global UPDATE_NODE_TUPLES
+        global INSERT_ARGUMENTS_WHEN_RETURNING_TUPLES
+        global INSERT_GLOBAL_VARIABLES_WHEN_RETURNING_TUPLES
+        with cnx.cursor() as cursor:
+            # Inserting nodes
+            sql = """INSERT INTO `nodes` (`id`,
+                `parent_id`,
+                `object_on_entry`,
+                `function_name`,
+                `creation_time`) VALUES (%s, %s, %s, %s, %s)"""
+            cursor.executemany(sql, INSERT_NODE_TUPLES)
+            # Inserting arguments and global variables on entry
+            sql = """INSERT INTO arguments_on_entry (`node_id`,
+            `name`,
+            `value`) VALUES (%s, %s, %s)"""
+            cursor.executemany(sql, INSERT_ARGUMENTS_ON_ENTRY_TUPLES)
+            sql = """INSERT INTO global_variables_on_entry (`node_id`,
+            `name`,
+            `value`) VALUES (%s, %s, %s)"""
+            cursor.executemany(sql, INSERT_GLOBAL_VARIABLES_ON_ENTRY_TUPLES)
+            # Update return value
+            sql = """Update nodes set return_value = %s
+            where id = %s"""
+            cursor.executemany(sql, UPDATE_RETURN_VALUE_TUPLES)
+            # Update node
+            sql = """Update nodes set finished = true,
+            object_when_returning = %s,
+            finishing_time = %s
+            where id = %s"""
+            cursor.executemany(sql, UPDATE_NODE_TUPLES)
+            # Insert arguments and global variables when returning
+            # sql = """INSERT INTO arguments_when_returning (`node_id`,
+            # `name`,
+            # `value`) VALUES (%s, %s, %s)"""
+            # cursor.executemany(sql, INSERT_ARGUMENTS_WHEN_RETURNING_TUPLES)
+            sql = """INSERT INTO global_variables_when_returning (`node_id`,
+            `name`,
+            `value`) VALUES (%s, %s, %s)"""
+            cursor.executemany(sql, INSERT_GLOBAL_VARIABLES_WHEN_RETURNING_TUPLES)
+        cnx.commit()
+
 
 TilTheEndSimple()
 
@@ -531,7 +561,7 @@ class SetFinalBreak(gdb.Breakpoint):
 class SetSuspectBreak(gdb.Breakpoint):
     def __init__(self, function):
         gdb.Breakpoint.__init__(self, function)
-        self.commands = ("add-node-to-session " + function + "\n")
+        self.commands = ("silent\nadd-node-to-session " + function + "\n")
         self.silent = True
 
     def stop(self):
@@ -551,24 +581,20 @@ class SetReferenceBreak(gdb.Breakpoint):
 class MyFinishBreakpoint(gdb.FinishBreakpoint):
     def __init__(self):
         super(MyFinishBreakpoint, self).__init__()
-        self.commands = ("save-returning-node")
+        self.commands = ("silent\nsave-returning-node")
         self.silent = True
 
     def stop(self):
         finishing_node_id = ACTIVE_NODE_IDS[-1]
-        global cnx
+        global UPDATE_RETURN_VALUE_TUPLES
         if self.return_value:
             return_value_tree = ComparableTree("return value")
             return_value_tree.add(self.return_value.format_string())
             return_value_tree = return_value_tree.to_json()
         else:
             return_value_tree = None
-        with cnx.cursor() as cursor:
-            sql = """Update nodes set return_value = %s
-            where id = %s"""
-            print(sql)
-            cursor.execute(sql, (return_value_tree,
-                                 finishing_node_id))
+        UPDATE_RETURN_VALUE_TUPLES.append((return_value_tree,
+                                           finishing_node_id))
         return True
 
 class MyReferenceFinishBreakpoint(gdb.FinishBreakpoint):
@@ -585,10 +611,11 @@ class MyReferenceFinishBreakpoint(gdb.FinishBreakpoint):
 
 # Functions
 
-def insert_symbols_in_db(cursor, symbols, node_id, table, frame):
+def insert_symbols_in_db(symbols, node_id, frame):
     """
     This works for arguments to functions and global variables
     """
+    my_symbols = []
     for symbol in symbols:
         if symbol.print_name != "this":
             if symbol.value(frame).type.code == gdb.TYPE_CODE_PTR:
@@ -601,10 +628,8 @@ def insert_symbols_in_db(cursor, symbols, node_id, table, frame):
                     array_indexes=True,
                     symbols=True,
                     deref_refs=True))
-            sql = """INSERT INTO `{table}` (`node_id`,
-            `name`,
-            `value`) VALUES (%s, %s, %s)""".format(table = table)
-            cursor.execute(sql, (node_id, symbol.print_name, symbol_value))
+            my_symbols.append((node_id, symbol.print_name, symbol_value))
+    return my_symbols
 
 def buggy_node_found(marked_execution_tree: Node) -> bool:
     return (marked_execution_tree.iscorrect == Correctness.NO
@@ -962,7 +987,7 @@ def build_tree() -> bool:
         with cnx.cursor() as cursor:
             sql = """Update nodes set finished = true where id = {id}""".format(id = 0)
             cursor.execute(sql)
-        cnx.commit()
+        #cnx.commit()
     toc = perf_counter_ns()
     #file1 = open("tree_building_ns.txt", "a")  # append mode
     #file1.write(str(MY_DEBUGGING_SESSION.node.weight) + " " + str(toc-tic) + "\n")
@@ -1082,8 +1107,6 @@ def get_symbol_trees_from_symbols(tree_root, symbols, frame):
         return None, None
     for symbol in non_object_symbols:
         symbol_branch = symbol.print_name + " = "
-        print(type(symbol))
-        print(symbol_branch)
         try:
             if symbol.value(frame).type.code == gdb.TYPE_CODE_PTR:
                 symbol_branch += str(symbol.value(frame).dereference())

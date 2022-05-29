@@ -85,13 +85,13 @@ CREATE TABLE `nodes` (
   `return_value` blob,
   `object_on_entry` blob,
   `object_when_returning` blob,
-  `creation_time` timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-  `finishing_time` timestamp(6) NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP(6),
+  `creation_time` timestamp(6) NULL DEFAULT NULL,
+  `finishing_time` timestamp(6) NULL DEFAULT NULL,
   `finished` tinyint(1) NOT NULL DEFAULT '0',
   UNIQUE KEY `id` (`id`),
   UNIQUE KEY `parent_id` (`parent_id`,`birth_order`),
   CONSTRAINT `parent_node_exists` FOREIGN KEY (`parent_id`) REFERENCES `nodes` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `root_parent_id_zero_ow_lower_than_id` CHECK ((if((`id` = 0),(`parent_id` = 0),(`id` > `parent_id`)) = true))
+  CONSTRAINT `root_parent_id_zero_otherwise_lower_than_id` CHECK ((if((`id` = 0),(`parent_id` = 0),(`id` > `parent_id`)) = true))
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
