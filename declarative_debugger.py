@@ -243,7 +243,7 @@ class SaveReturningNode(gdb.Command):
                                    datetime.now(),
                                    finishing_node_id))
         INSERT_ARGUMENTS_WHEN_RETURNING_TUPLES += insert_symbols_in_db(
-            arguments,
+            get_pointer_or_ref(arguments, gdb.selected_frame()),
             node_id,
             gdb.selected_frame())
         INSERT_GLOBAL_VARIABLES_WHEN_RETURNING_TUPLES += insert_symbols_in_db(
@@ -475,10 +475,10 @@ class TilTheEndSimple(gdb.Command):
             where id = %s"""
             cursor.executemany(sql, UPDATE_NODE_TUPLES)
             # Insert arguments and global variables when returning
-            # sql = """INSERT INTO arguments_when_returning (`node_id`,
-            # `name`,
-            # `value`) VALUES (%s, %s, %s)"""
-            # cursor.executemany(sql, INSERT_ARGUMENTS_WHEN_RETURNING_TUPLES)
+            sql = """INSERT INTO arguments_when_returning (`node_id`,
+            `name`,
+            `value`) VALUES (%s, %s, %s)"""
+            cursor.executemany(sql, INSERT_ARGUMENTS_WHEN_RETURNING_TUPLES)
             sql = """INSERT INTO global_variables_when_returning (`node_id`,
             `name`,
             `value`) VALUES (%s, %s, %s)"""
