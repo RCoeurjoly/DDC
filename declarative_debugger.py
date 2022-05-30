@@ -20,15 +20,6 @@ cnx = mysql.connector.connect(user='root', password='ddc',
                               host='127.0.0.1',
                               database='ddc')
 
-## Disable constraints
-cursor = cnx.cursor()
-
-cursor.execute('delete from global_variables_when_returning;')
-cursor.execute('delete from global_variables_on_entry;')
-cursor.execute('delete from arguments_when_returning;')
-cursor.execute('delete from arguments_on_entry;')
-cursor.execute('delete from nodes;')
-cnx.commit()
 # Constants
 
 HOST = 'localhost'
@@ -431,10 +422,10 @@ class TilTheEnd(gdb.Command):
                                  if breakpoint.commands.startswith("add-node-to-correct-list")])
         total_br_number = len(gdb.breakpoints())
         while total_br_number == initial_br_number:
-            gdb.execute("c")
+            gdb.execute("cont")
             total_br_number = len(gdb.breakpoints())
         while gdb.selected_inferior().pid != 0:
-            gdb.execute("c")
+            gdb.execute("cont")
             total_br_number = len(gdb.breakpoints())
 
 TilTheEnd()
@@ -450,6 +441,35 @@ class TilTheEndSimple(gdb.Command):
             gdb.execute("cont")
 
 TilTheEndSimple()
+
+class InsertBenchmark(gdb.Command):
+    """Goes to the end"""
+    def __init__(self):
+        super(InsertBenchmark, self).__init__(
+            "insert-benchmark", gdb.COMMAND_USER)
+
+    def invoke(self, arg, from_tty):
+        global cnx
+        with cnx.cursor() as cursor:
+            query = ("select TIMESTAMPDIFF(microsecond,creation_time,finishing_time)*1000 "
+                     "from nodes where id = 0")
+            cursor.execute(query)
+            my_building_time_ns = 0
+            for (building_time_ns) in cursor:
+                my_building_time_ns = building_time_ns
+            print(my_building_time_ns)
+            query = ("select count(*) from nodes")
+            cursor.execute(query)
+            my_number_of_nodes = 0
+            for (number_of_nodes) in cursor:
+                my_number_of_nodes = number_of_nodes
+            sql = """INSERT INTO `benchmarks` (`my_vector_length`,
+            `number_of_nodes`,
+            `building_time_ns`) VALUES (%s, %s, %s)"""
+            cursor.execute(sql, (int(arg), my_number_of_nodes[0], my_building_time_ns[0]))
+        cnx.commit()
+
+InsertBenchmark()
 
 class InsertIntoDatabase(gdb.Command):
     """Inserts nodes into database"""
@@ -508,6 +528,57 @@ class InsertIntoDatabase(gdb.Command):
 
 InsertIntoDatabase()
 
+class CleanDatabase(gdb.Command):
+    """Goes to the end"""
+    def __init__(self):
+        super(CleanDatabase, self).__init__(
+            "clean-database", gdb.COMMAND_USER)
+
+    def invoke(self, arg, from_tty):
+        with cnx.cursor() as cursor:
+            cursor.execute('delete from global_variables_when_returning;')
+            cursor.execute('delete from global_variables_on_entry;')
+            cursor.execute('delete from arguments_when_returning;')
+            cursor.execute('delete from arguments_on_entry;')
+            cursor.execute('delete from nodes;')
+        cnx.commit()
+
+CleanDatabase()
+
+class Loop10(gdb.Command):
+    """Goes to the end"""
+    def __init__(self):
+        super(Loop10, self).__init__(
+            "loop-10", gdb.COMMAND_USER)
+
+    def invoke(self, arg, from_tty):
+        for i in range(10):
+            global ACTIVE_NODE_IDS
+            global INSERT_NODE_TUPLES
+            global INSERT_ARGUMENTS_ON_ENTRY_TUPLES
+            global INSERT_GLOBAL_VARIABLES_ON_ENTRY_TUPLES
+            global UPDATE_RETURN_VALUE_TUPLES
+            global UPDATE_NODE_TUPLES
+            global INSERT_ARGUMENTS_WHEN_RETURNING_TUPLES
+            global INSERT_GLOBAL_VARIABLES_WHEN_RETURNING_TUPLES
+            global node_id
+
+            ACTIVE_NODE_IDS = []
+            INSERT_NODE_TUPLES = []
+            INSERT_ARGUMENTS_ON_ENTRY_TUPLES = []
+            INSERT_GLOBAL_VARIABLES_ON_ENTRY_TUPLES = []
+            UPDATE_RETURN_VALUE_TUPLES = []
+            UPDATE_NODE_TUPLES = []
+            INSERT_ARGUMENTS_WHEN_RETURNING_TUPLES = []
+            INSERT_GLOBAL_VARIABLES_WHEN_RETURNING_TUPLES = []
+            node_id = -1
+            gdb.execute("start")
+            gdb.execute("clean-database")
+            gdb.execute("til-the-end-simple")
+            gdb.execute("insert-into-database")
+            gdb.execute("insert-benchmark " + arg)
+
+Loop10()
 
 class ListenForCorrectNodes(gdb.Command):
 
@@ -1010,7 +1081,7 @@ def build_tree() -> bool:
     global tic, toc, cursor, cnx
     tic = perf_counter_ns()
     while total_br_number == initial_br_number:
-        gdb.execute("c")
+        gdb.execute("cont")
         total_br_number = len(gdb.breakpoints())
     # The sum of hit_count of all suspect nodes should be greater than 0
     # assert reduce(lambda x, y: x + y, [breakpoint.hit_count for breakpoint in gdb.breakpoints() if breakpoint.commands.startswith("add-node-to-session ")]) > 0
@@ -1023,7 +1094,7 @@ def build_tree() -> bool:
               + ". Please reconsider")
         return False
     while total_br_number != initial_br_number:
-        gdb.execute("c")
+        gdb.execute("cont")
         total_br_number = len(gdb.breakpoints())
     if gdb.selected_inferior().pid != 0:
         # Main has finished
