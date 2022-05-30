@@ -108,11 +108,15 @@
           name = "benchmarks";
           src = self;
           dontStrip = true;
-          nativeBuildInputs = [ pkgs.gdb pkgs.rr ];
+          nativeBuildInputs = [ pkgs.gdb
+                                pkgs.rr
+                                self.packages.x86_64-linux.quicksort_benchmarks ];
           installPhase = ''
           mkdir -p $out;
           touch $out/execution_time.txt;
           touch $out/recording_time.txt;
+          touch $out/gdb_time.txt;
+          touch $out/rr_time.txt;
           for exponent in {1..17}
           do
              input_vector=""
@@ -131,6 +135,14 @@
               rr record -o $out/traces_"$exponent"_"$iteration" ${self.packages.x86_64-linux.quicksort_benchmarks.outPath}/bin/quicksort_benchmarks $input_vector
               DURATION=$[ $(date +%s%N) - $START ]
               echo "$list_length" $DURATION >> $out/recording_time.txt
+              START="$(date +%s%N)"
+              gdb -x gdb_script ${self.packages.x86_64-linux.quicksort_benchmarks.outPath}/bin/quicksort_benchmarks $input_vector
+              DURATION=$[ $(date +%s%N) - $START ]
+              echo "$list_length" $DURATION >> $out/gdb_time.txt
+              START="$(date +%s%N)"
+              rr replay -x gdb_script $out/traces_"$exponent"_"$iteration"
+              DURATION=$[ $(date +%s%N) - $START ]
+              echo "$list_length" $DURATION >> $out/rr_time.txt
              done
           done
           '';
@@ -228,6 +240,8 @@
           cp ${./mysql/db/migrations}/*.sql $out/db/migrations/
           '';
         };
+
+      packages.x86_64-linux.z3 = pkgs.z3;
 
       checks.x86_64-linux.rollback =
         pkgs.stdenv.mkDerivation {
@@ -365,7 +379,7 @@
                                    rr
                                    glibc
                                    # csmith
-                                   # z3
+                                   z3
                                    # boogie
                                    poetry
                                    python39Packages.pylint
