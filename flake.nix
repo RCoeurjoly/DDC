@@ -6,9 +6,10 @@
     nixpkgs.url = "github:NixOS/nixpkgs";
     flake-utils.url = "github:numtide/flake-utils";
     lean4.url = "github:leanprover/lean4";
+    nix.url = "github:NixOS/nix";
   };
 
-  outputs = { self, nixpkgs, flake-utils, lean4 }:
+  outputs = { self, nixpkgs, flake-utils, lean4, nix }:
     let
       pkgs = nixpkgs.legacyPackages.x86_64-linux;
 
@@ -216,6 +217,8 @@
           buildPhase = "gcc -O0 -g -o quicksort_array ./quicksort_array.cpp -lstdc++";
           installPhase = "mkdir -p $out/tests; install -t $out/tests quicksort_array";
         };
+
+      packages.x86_64-linux.nix = nix.packages.x86_64-linux.nix;
 
       packages.x86_64-linux.database =
         # Notice the reference to nixpkgs here.
