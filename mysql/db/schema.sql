@@ -41,6 +41,19 @@ CREATE TABLE `arguments_when_returning` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
+-- Table structure for table `benchmarks`
+--
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `benchmarks` (
+  `my_vector_length` int unsigned DEFAULT NULL,
+  `number_of_nodes` int unsigned DEFAULT NULL,
+  `building_time_ns` bigint unsigned DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
 -- Table structure for table `global_variables_on_entry`
 --
 
@@ -80,7 +93,6 @@ CREATE TABLE `global_variables_when_returning` (
 CREATE TABLE `nodes` (
   `id` int unsigned DEFAULT NULL,
   `parent_id` int unsigned DEFAULT NULL,
-  `birth_order` int unsigned DEFAULT NULL,
   `function_name` blob NOT NULL,
   `return_value` blob,
   `object_on_entry` blob,
@@ -89,7 +101,7 @@ CREATE TABLE `nodes` (
   `finishing_time` timestamp(6) NULL DEFAULT NULL,
   `finished` tinyint(1) NOT NULL DEFAULT '0',
   UNIQUE KEY `id` (`id`),
-  UNIQUE KEY `parent_id` (`parent_id`,`birth_order`),
+  KEY `parent_node_exists` (`parent_id`),
   CONSTRAINT `parent_node_exists` FOREIGN KEY (`parent_id`) REFERENCES `nodes` (`id`) ON DELETE CASCADE,
   CONSTRAINT `root_parent_id_zero_otherwise_lower_than_id` CHECK ((if((`id` = 0),(`parent_id` = 0),(`id` > `parent_id`)) = true))
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
@@ -132,5 +144,6 @@ INSERT INTO `schema_migrations` (version) VALUES
   ('20220523165858'),
   ('20220523165910'),
   ('20220523165927'),
-  ('20220523165938');
+  ('20220523165938'),
+  ('20220530104328');
 UNLOCK TABLES;
