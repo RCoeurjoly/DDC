@@ -28,6 +28,7 @@ cursor.execute('delete from global_variables_on_entry;')
 cursor.execute('delete from arguments_when_returning;')
 cursor.execute('delete from arguments_on_entry;')
 cursor.execute('delete from nodes;')
+cnx.commit()
 # Constants
 
 HOST = 'localhost'
@@ -238,14 +239,14 @@ class SaveReturningNode(gdb.Command):
         UPDATE_NODE_TUPLES.append((object_state_when_returning,
                                    datetime.now(),
                                    finishing_node_id))
-        INSERT_ARGUMENTS_WHEN_RETURNING_TUPLES += [(finishing_node_id, ) + tuple
-                                                   for tuple in
-                                                   get_name_value_tuple_from_symbols(
+        INSERT_ARGUMENTS_WHEN_RETURNING_TUPLES += [(finishing_node_id, ) + my_tuple
+                                                   for my_tuple in
+                                                   get_name_value_tuple_list_from_symbols(
                                                        get_pointer_or_ref(arguments, frame),
                                                        frame)]
-        INSERT_GLOBAL_VARIABLES_WHEN_RETURNING_TUPLES += [(finishing_node_id, ) + tuple
-                                                          for tuple in
-                                                          get_name_value_tuple_from_symbols(
+        INSERT_GLOBAL_VARIABLES_WHEN_RETURNING_TUPLES += [(finishing_node_id, ) + my_tuple
+                                                          for my_tuple in
+                                                          get_name_value_tuple_list_from_symbols(
                                                               get_global_variables(frame),
                                                               frame)]
         gdb.execute("n")
@@ -311,14 +312,23 @@ class CommandAddNodeToSession(gdb.Command):
                         function_name,
                         datetime.now())
         INSERT_NODE_TUPLES.append(insert_tuple)
-        INSERT_ARGUMENTS_ON_ENTRY_TUPLES += [(node_id, ) + tuple
-                                             for tuple in
-                                             get_name_value_tuple_from_symbols(
-                                                 arguments,
-                                                 frame)]
-        INSERT_GLOBAL_VARIABLES_ON_ENTRY_TUPLES += [(node_id, ) + tuple
-                                                    for tuple in
-                                                    get_name_value_tuple_from_symbols(
+        argument_tuple_list = [(node_id, ) + my_tuple
+                               for my_tuple in
+                               get_name_value_tuple_list_from_symbols(
+                                   arguments,
+                                   frame)]
+        i = 0
+        for argument in INSERT_ARGUMENTS_ON_ENTRY_TUPLES:
+            print("Argument number " + str(i) + ": " + argument[2].format_string())
+            i += 1
+        INSERT_ARGUMENTS_ON_ENTRY_TUPLES += argument_tuple_list
+        print(INSERT_ARGUMENTS_ON_ENTRY_TUPLES[0][2].format_string())
+        print(argument_tuple_list)
+        # for argument in argument_tuple_list:
+        #     print(argument[2].format_string())
+        INSERT_GLOBAL_VARIABLES_ON_ENTRY_TUPLES += [(node_id, ) + my_tuple
+                                                    for my_tuple in
+                                                    get_name_value_tuple_list_from_symbols(
                                                         get_global_variables(frame),
                                                         frame)]
         ACTIVE_NODE_IDS.append(node_id)
@@ -651,6 +661,9 @@ def print_value(value):
 def recursive_dereference(value):
     if value.type.code == gdb.TYPE_CODE_PTR:
         return recursive_dereference(value.dereference())
+    elif value.type.code == gdb.TYPE_CODE_REF:
+        print()
+        return value.referenced_value()
     return value
 
 def get_value_from_symbol(symbol, frame):
@@ -659,23 +672,24 @@ def get_value_from_symbol(symbol, frame):
     """
     if symbol:
         assert(symbol.is_valid())
+        assert(frame.is_valid())
         my_value = symbol.value(frame)
-        my_true_value = recursive_dereference(my_value)
+        my_true_value = gdb.Value(recursive_dereference(my_value))
         my_true_value.fetch_lazy()
         return my_true_value
     return None
 
-def get_name_value_tuple_from_symbols(symbols, frame):
+def get_name_value_tuple_list_from_symbols(symbols, frame):
     """
     This works for arguments to functions and global variables
     """
-    my_symbols = set()
+    my_name_value_tuple_list = []
     for symbol in symbols:
         assert(symbol.is_valid())
         if symbol.print_name != "this":
             my_value = get_value_from_symbol(symbol, frame)
-            my_symbols.add((symbol.print_name, my_value))
-    return my_symbols
+            my_name_value_tuple_list.append((symbol.print_name, my_value))
+    return my_name_value_tuple_list
 
 def buggy_node_found(marked_execution_tree: Node) -> bool:
     return (marked_execution_tree.iscorrect == Correctness.NO
