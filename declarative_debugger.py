@@ -227,7 +227,7 @@ class SaveReturningNode(gdb.Command):
         global UPDATE_NODE_TUPLES
         global INSERT_ARGUMENTS_WHEN_RETURNING_TUPLES
         global INSERT_GLOBAL_VARIABLES_WHEN_RETURNING_TUPLES
-        UPDATE_NODE_TUPLES.append((object_state_when_returning,
+        UPDATE_NODE_TUPLES.append((print_value(object_state_when_returning),
                                    datetime.now(),
                                    finishing_node_id))
         INSERT_ARGUMENTS_WHEN_RETURNING_TUPLES += [(finishing_node_id, ) +
@@ -301,7 +301,7 @@ class CommandAddNodeToSession(gdb.Command):
                         node_id
                         if node_id == 0
                         else ACTIVE_NODE_IDS[-1],
-                        object_state_on_entry,
+                        print_value(object_state_on_entry),
                         function_name,
                         datetime.now())
         INSERT_NODE_TUPLES.append(insert_tuple)
@@ -714,7 +714,7 @@ def print_value(value):
     return None
 
 def recursive_dereference(value):
-    if value.type.code == gdb.TYPE_CODE_PTR:
+    if value.type.code == gdb.TYPE_CODE_PTR and value != 0x0:
         return recursive_dereference(value.dereference())
     elif value.type.code == gdb.TYPE_CODE_REF:
         print()
