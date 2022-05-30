@@ -1,15 +1,11 @@
 {
   description = "Declarative debugger for C++";
 
-  inputs = {
-    # nixpkgs.url = "github:RCoeurjoly/nixpkgs";
-    nixpkgs.url = "github:NixOS/nixpkgs";
-    flake-utils.url = "github:numtide/flake-utils";
-    lean4.url = "github:leanprover/lean4";
-    nix.url = "github:NixOS/nix";
-  };
+  # inputs.nixpkgs.url = "nixpkgs/nixos-21.05-small";
+  inputs.nixpkgs.url = "nixpkgs";
+  inputs.flake-utils.url = "github:numtide/flake-utils";
 
-  outputs = { self, nixpkgs, flake-utils, lean4, nix }:
+  outputs = { self, nixpkgs, flake-utils }:
     let
       pkgs = nixpkgs.legacyPackages.x86_64-linux;
 
@@ -218,8 +214,6 @@
           installPhase = "mkdir -p $out/tests; install -t $out/tests quicksort_array";
         };
 
-      packages.x86_64-linux.nix = nix.packages.x86_64-linux.nix;
-
       packages.x86_64-linux.database =
         # Notice the reference to nixpkgs here.
         with import nixpkgs { system = "x86_64-linux"; };
@@ -369,6 +363,7 @@
       devShells.x86_64-linux.default = myAppEnv.env.overrideAttrs (oldAttrs: {
         buildInputs = with pkgs; [ gdb
                                    rr
+                                   glibc
                                    # csmith
                                    # z3
                                    # boogie
