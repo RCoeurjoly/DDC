@@ -239,12 +239,14 @@ class SaveReturningNode(gdb.Command):
         UPDATE_NODE_TUPLES.append((object_state_when_returning,
                                    datetime.now(),
                                    finishing_node_id))
-        INSERT_ARGUMENTS_WHEN_RETURNING_TUPLES += [(finishing_node_id, ) + my_tuple
+        INSERT_ARGUMENTS_WHEN_RETURNING_TUPLES += [(finishing_node_id, ) +
+                                                   (my_tuple[0], print_value(my_tuple[1]))
                                                    for my_tuple in
                                                    get_name_value_tuple_list_from_symbols(
                                                        get_pointer_or_ref(arguments, frame),
                                                        frame)]
-        INSERT_GLOBAL_VARIABLES_WHEN_RETURNING_TUPLES += [(finishing_node_id, ) + my_tuple
+        INSERT_GLOBAL_VARIABLES_WHEN_RETURNING_TUPLES += [(finishing_node_id, ) +
+                                                          (my_tuple[0], print_value(my_tuple[1]))
                                                           for my_tuple in
                                                           get_name_value_tuple_list_from_symbols(
                                                               get_global_variables(frame),
@@ -312,21 +314,23 @@ class CommandAddNodeToSession(gdb.Command):
                         function_name,
                         datetime.now())
         INSERT_NODE_TUPLES.append(insert_tuple)
-        argument_tuple_list = [(node_id, ) + my_tuple
+        argument_tuple_list = [(node_id, ) +
+                               (my_tuple[0], print_value(my_tuple[1]))
                                for my_tuple in
                                get_name_value_tuple_list_from_symbols(
                                    arguments,
                                    frame)]
         i = 0
-        for argument in INSERT_ARGUMENTS_ON_ENTRY_TUPLES:
-            print("Argument number " + str(i) + ": " + argument[2].format_string())
-            i += 1
+        #for argument in INSERT_ARGUMENTS_ON_ENTRY_TUPLES:
+            #print("Argument number " + str(i) + ": " + argument[2].format_string())
+        #    i += 1
         INSERT_ARGUMENTS_ON_ENTRY_TUPLES += argument_tuple_list
-        print(INSERT_ARGUMENTS_ON_ENTRY_TUPLES[0][2].format_string())
-        print(argument_tuple_list)
+        #print(INSERT_ARGUMENTS_ON_ENTRY_TUPLES[0][2].format_string())
+        #print(argument_tuple_list)
         # for argument in argument_tuple_list:
         #     print(argument[2].format_string())
-        INSERT_GLOBAL_VARIABLES_ON_ENTRY_TUPLES += [(node_id, ) + my_tuple
+        INSERT_GLOBAL_VARIABLES_ON_ENTRY_TUPLES += [(node_id, ) +
+                                                    (my_tuple[0], print_value(my_tuple[1]))
                                                     for my_tuple in
                                                     get_name_value_tuple_list_from_symbols(
                                                         get_global_variables(frame),
@@ -470,58 +474,36 @@ class InsertIntoDatabase(gdb.Command):
             `object_on_entry`,
             `function_name`,
             `creation_time`) VALUES (%s, %s, %s, %s, %s)"""
-            cursor.executemany(sql, [(my_tuple[0],
-                                      my_tuple[1],
-                                      print_value(my_tuple[2]),
-                                      my_tuple[3],
-                                      my_tuple[4])
-                                for my_tuple in INSERT_NODE_TUPLES])
+            cursor.executemany(sql, INSERT_NODE_TUPLES)
             # Inserting arguments and global variables on entry
             sql = """INSERT INTO arguments_on_entry (`node_id`,
             `name`,
             `value`) VALUES (%s, %s, %s)"""
             cursor.executemany(sql,
-                               [(my_tuple[0],
-                                 my_tuple[1],
-                                 print_value(my_tuple[2]))
-                                for my_tuple in INSERT_ARGUMENTS_ON_ENTRY_TUPLES])
+                               INSERT_ARGUMENTS_ON_ENTRY_TUPLES)
             sql = """INSERT INTO global_variables_on_entry (`node_id`,
             `name`,
             `value`) VALUES (%s, %s, %s)"""
-            cursor.executemany(sql, [(my_tuple[0],
-                                      my_tuple[1],
-                                      print_value(my_tuple[2]))
-                                     for my_tuple in INSERT_GLOBAL_VARIABLES_ON_ENTRY_TUPLES])
+            cursor.executemany(sql, INSERT_GLOBAL_VARIABLES_ON_ENTRY_TUPLES)
             # Update return value
             sql = """Update nodes set return_value = %s
             where id = %s"""
-            cursor.executemany(sql, [(print_value(my_tuple[0]),
-                                      my_tuple[1])
-                                     for my_tuple in UPDATE_RETURN_VALUE_TUPLES])
+            cursor.executemany(sql, UPDATE_RETURN_VALUE_TUPLES)
             # Update node
             sql = """Update nodes set finished = true,
             object_when_returning = %s,
             finishing_time = %s
             where id = %s"""
-            cursor.executemany(sql, [(print_value(my_tuple[0]),
-                                      my_tuple[1],
-                                      my_tuple[2])
-                                     for my_tuple in UPDATE_NODE_TUPLES])
+            cursor.executemany(sql, UPDATE_NODE_TUPLES)
             # Insert arguments and global variables when returning
             sql = """INSERT INTO arguments_when_returning (`node_id`,
             `name`,
             `value`) VALUES (%s, %s, %s)"""
-            cursor.executemany(sql, [(my_tuple[0],
-                                      my_tuple[1],
-                                      print_value(my_tuple[2]))
-                                     for my_tuple in INSERT_ARGUMENTS_WHEN_RETURNING_TUPLES])
+            cursor.executemany(sql, INSERT_ARGUMENTS_WHEN_RETURNING_TUPLES)
             sql = """INSERT INTO global_variables_when_returning (`node_id`,
             `name`,
             `value`) VALUES (%s, %s, %s)"""
-            cursor.executemany(sql, [(my_tuple[0],
-                                      my_tuple[1],
-                                      print_value(my_tuple[2]))
-                                     for my_tuple in INSERT_GLOBAL_VARIABLES_WHEN_RETURNING_TUPLES])
+            cursor.executemany(sql, INSERT_GLOBAL_VARIABLES_WHEN_RETURNING_TUPLES)
         cnx.commit()
 
 InsertIntoDatabase()
@@ -630,7 +612,9 @@ class MyFinishBreakpoint(gdb.FinishBreakpoint):
             return_value.fetch_lazy()
         else:
             return_value = None
-        UPDATE_RETURN_VALUE_TUPLES.append((return_value,
+        UPDATE_RETURN_VALUE_TUPLES.append((print_value(return_value)
+                                           if return_value
+                                           else None,
                                            finishing_node_id))
         return True
 
