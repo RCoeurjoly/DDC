@@ -223,7 +223,7 @@ class SaveReturningNode(gdb.Command):
             "save-returning-node", gdb.COMMAND_USER)
 
     def invoke(self, arg, from_tty):
-        gdb.execute("reverse-step") # To execute this command, rr is needed
+        gdb.execute("reverse-stepi") # To execute this command, rr is needed
         frame = gdb.newest_frame()
         global ACTIVE_NODE_IDS
         finishing_node_id = ACTIVE_NODE_IDS.pop(-1)
