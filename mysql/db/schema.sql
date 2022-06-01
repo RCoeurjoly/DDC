@@ -48,6 +48,7 @@ CREATE TABLE `arguments_when_returning` (
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `benchmarks` (
   `my_vector_length` int unsigned DEFAULT NULL,
+  `number_of_breakpoints` int unsigned DEFAULT NULL,
   `number_of_nodes` int unsigned DEFAULT NULL,
   `building_time_ns` bigint unsigned DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
