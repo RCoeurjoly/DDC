@@ -25,6 +25,68 @@ cnx = mysql.connector.connect(user='root', password='ddc',
 HOST = 'localhost'
 PORT = 50007
 
+z3_functions = [
+    "main",
+    "_ZN11ast_managerC2E14proof_gen_modePKcb",
+    "_ZN11ast_managerC2E14proof_gen_modePSt13basic_fstreamIcSt11char_traitsIcEEb",
+    "_ZN11ast_manager13get_allocatorEv",
+    "_ZNK11ast_manager19get_basic_family_idEv",
+    "_ZNK11ast_manager16has_trace_streamEv",
+    "_ZN11ast_manager21mk_uninterpreted_sortERK6symbol",
+    "_ZN11ast_manager4initEv",
+    "_ZN11ast_manager21mk_uninterpreted_sortERK6symboljPK9parameter",
+    "_ZN11ast_manager15deallocate_nodeEP3astj",
+    "_ZNK11ast_manager20get_user_sort_pluginEv",
+    "_ZN11ast_manager8mk_constEP9func_decl",
+    "_ZN18dependency_managerIN11ast_manager22expr_dependency_configEEC2ERS0_R22small_object_allocator",
+    "_ZN14parray_managerIN11ast_manager17expr_array_configEEC2ERS0_R22small_object_allocator",
+    "_ZN14parray_managerIN11ast_manager28expr_dependency_array_configEEC2ERS0_R22small_object_allocator",
+    "_ZN11ast_manager5limitEv",
+    "_ZNK11ast_manager12mk_bool_sortEv",
+    "_ZN11ast_manager13mk_const_declERK6symbolP4sortRK14func_decl_info",
+    "_ZN10ptr_vectorIN14parray_managerIN11ast_manager17expr_array_configEE4cellEEC2Ev",
+    "_ZN10ptr_vectorIN14parray_managerIN11ast_manager28expr_dependency_array_configEE4cellEEC2Ev",
+    "_ZN6vectorIPN14parray_managerIN11ast_manager17expr_array_configEE4cellELb0EjEC2Ev",
+    "_ZN6vectorIPN14parray_managerIN11ast_manager28expr_dependency_array_configEE4cellELb0EjEC2Ev",
+    "_ZN11ast_manager7dec_refEP3ast",
+    "_ZN11ast_manager6mk_appEiijPKP4expr",
+    "_ZN11ast_manager6mk_appEiijPK9parameterjPKP4exprP4sort",
+    "_ZN11ast_manager12mk_func_declEiijPK9parameterjPKP4exprP4sort",
+    "_ZN11ast_manager8mk_constEii",
+    "_ZN11ast_manager10check_argsEP9func_decljPKP4expr",
+    "_ZN11ast_manager15coercion_neededEP9func_decljPKP4expr",
+    "_ZN11ast_manager6mk_appEP9func_decljPKP4expr",
+    "_ZN11ast_manager11mk_app_coreEP9func_decljPKP4expr",
+    "_ZN19ref_manager_wrapperIN18dependency_managerIN11ast_manager22expr_dependency_configEE10dependencyES1_EC2ERS1_",
+    "_ZN10ref_vectorIN18dependency_managerIN11ast_manager22expr_dependency_configEE10dependencyES1_EC2ERS1_",
+    "_ZN15ref_vector_coreIN18dependency_managerIN11ast_manager22expr_dependency_configEE10dependencyE19ref_manager_wrapperIS4_S1_EEC2ERKS6_",
+    "_ZN11ast_manager7mk_sortEiijPK9parameter",
+    "_ZN11ast_manager15register_pluginERK6symbolP11decl_plugin",
+    "_ZNK11ast_manager17is_format_managerEv",
+    "_ZN10ptr_vectorIN18dependency_managerIN11ast_manager22expr_dependency_configEE10dependencyEEC2Ev",
+    "_ZN6vectorIPN18dependency_managerIN11ast_manager22expr_dependency_configEE10dependencyELb0EjEC2Ev",
+    "_ZN11ast_manager15register_pluginEiP11decl_plugin",
+    "_ZN11ast_manager12mk_func_declERK6symbolP4sortS4_RK14func_decl_info",
+    "_ZN11ast_manager12mk_func_declERK6symbolP4sortS4_S4_RK14func_decl_info",
+    "_ZN11ast_manager12mk_func_declERK6symboljPKP4sortS4_P14func_decl_info",
+    "_ZN11ast_manager12mk_func_declERK6symboljPKP4sortS4_RK14func_decl_info",
+    "_ZN11ast_manager7mk_sortERK6symbolP9sort_info",
+    "_ZN11ast_manager7mk_sortERK6symbolRK9sort_info",
+    "_ZN7obj_refIN18dependency_managerIN11ast_manager22expr_dependency_configEE10dependencyES1_EC2ERS1_",
+    "_ZNK11ast_manager13get_family_idEPKc",
+    "_ZNK11ast_manager13get_family_idERK6symbol",
+    "_ZNK11ast_manager14proofs_enabledEv",
+    "_ZN11ast_manager18register_node_coreEP3ast",
+    "_ZN11ast_manager13allocate_nodeEj",
+    "_ZNK11ast_manager10has_pluginEi",
+    "_ZNK11ast_manager10has_pluginERK6symbol",
+    "_ZNK11ast_manager12get_num_astsEv",
+    "_ZN11ast_manager7inc_refEP3ast",
+    "_ZN11ast_manager12mk_family_idEPKc",
+    "_ZNK11ast_manager10get_pluginEi",
+    "_ZN11ast_manager12mk_family_idERK6symbol",
+]
+
 # Classes
 
 class ComparableTree(Tree):
@@ -191,6 +253,7 @@ INSERT_GLOBAL_VARIABLES_WHEN_RETURNING_TUPLES = []
 tic = None
 toc = None
 node_id = -1
+
 # GDB Commands
 
 class CommandFinishSession(gdb.Command):
@@ -206,6 +269,9 @@ class CommandFinishSession(gdb.Command):
 
 CommandFinishSession()
 
+def reverse_stepi():
+    gdb.execute("reverse-stepi") # To execute this command, rr is needed
+
 class SaveReturningNode(gdb.Command):
     """Save the info at the moment a node is returning in declarative debugging session"""
 
@@ -214,7 +280,7 @@ class SaveReturningNode(gdb.Command):
             "save-returning-node", gdb.COMMAND_USER)
 
     def invoke(self, arg, from_tty):
-        gdb.execute("reverse-stepi") # To execute this command, rr is needed
+        reverse_stepi()
         frame = gdb.newest_frame()
         global ACTIVE_NODE_IDS
         finishing_node_id = ACTIVE_NODE_IDS.pop(-1)
@@ -439,14 +505,34 @@ class TilTheEndSimple(gdb.Command):
     def invoke(self, arg, from_tty):
         while gdb.selected_inferior().pid != 0:
             gdb.execute("cont")
+        gdb.execute("finish-main")
 
 TilTheEndSimple()
 
-class InsertBenchmark(gdb.Command):
+class FinishMain(gdb.Command):
+    def __init__(self):
+        super(FinishMain, self).__init__(
+            "finish-main", gdb.COMMAND_USER)
+
+    def invoke(self, arg, from_tty):
+        global INSERT_NODE_TUPLES
+        global UPDATE_NODE_TUPLES
+        if (len(INSERT_NODE_TUPLES) > 0
+            and INSERT_NODE_TUPLES[0][0] == 0
+            and INSERT_NODE_TUPLES[0][1] == 0
+            and INSERT_NODE_TUPLES[0][3] == "main"):
+            UPDATE_NODE_TUPLES.append((None,
+                                      datetime.now(),
+                                      0))
+
+FinishMain()
+
+
+class InsertDDCBenchmark(gdb.Command):
     """Goes to the end"""
     def __init__(self):
-        super(InsertBenchmark, self).__init__(
-            "insert-benchmark", gdb.COMMAND_USER)
+        super(InsertDDCBenchmark, self).__init__(
+            "insert-ddc-benchmark", gdb.COMMAND_USER)
 
     def invoke(self, arg, from_tty):
         global cnx
@@ -457,19 +543,46 @@ class InsertBenchmark(gdb.Command):
             my_building_time_ns = 0
             for (building_time_ns) in cursor:
                 my_building_time_ns = building_time_ns
-            print(my_building_time_ns)
             query = ("select count(*) from nodes")
             cursor.execute(query)
             my_number_of_nodes = 0
             for (number_of_nodes) in cursor:
                 my_number_of_nodes = number_of_nodes
+            my_number_of_breakpoints = len(gdb.breakpoints())
             sql = """INSERT INTO `benchmarks` (`my_vector_length`,
+            `number_of_breakpoints`,
             `number_of_nodes`,
-            `building_time_ns`) VALUES (%s, %s, %s)"""
-            cursor.execute(sql, (int(arg), my_number_of_nodes[0], my_building_time_ns[0]))
+            `building_time_ns`) VALUES (%s, %s, %s, %s)"""
+            cursor.execute(sql, (int(arg),
+                                 my_number_of_breakpoints,
+                                 my_number_of_nodes[0],
+                                 my_building_time_ns[0]))
         cnx.commit()
 
-InsertBenchmark()
+InsertDDCBenchmark()
+
+class CreateGDBBenchmark(gdb.Command):
+    def __init__(self):
+        super(CreateGDBBenchmark, self).__init__(
+            "create-gdb-benchmark", gdb.COMMAND_USER)
+
+    def invoke(self, arg, from_tty):
+        global cnx
+        gdb.execute("start")
+        tic = perf_counter_ns()
+        gdb.execute("til-the-end-simple")
+        toc = perf_counter_ns()
+        with cnx.cursor() as cursor:
+            my_number_of_breakpoints = len(gdb.breakpoints())
+            sql = """INSERT INTO `benchmarks` (`my_vector_length`,
+            `number_of_breakpoints`,
+            `number_of_nodes`,
+            `building_time_ns`) VALUES (%s, %s, %s, %s)"""
+            cursor.execute(sql, (0, my_number_of_breakpoints, 0, toc-tic))
+        cnx.commit()
+
+CreateGDBBenchmark()
+
 
 class InsertIntoDatabase(gdb.Command):
     """Inserts nodes into database"""
@@ -637,6 +750,35 @@ class PrintTree(gdb.Command):
 
 PrintTree()
 
+class SetZ3Breakpoints(gdb.Command):
+    """Print nodes of declarative debugging session"""
+
+    def __init__(self):
+        super(SetZ3Breakpoints, self).__init__(
+            "set-z3-breakpoints", gdb.COMMAND_USER)
+
+    def invoke(self, arg, from_tty):
+        global z3_functions
+        for z3_function in z3_functions[:int(arg)]:
+            gdb.execute("b " + z3_function)
+
+SetZ3Breakpoints()
+
+class SetZ3SuspectFunctions(gdb.Command):
+    """Print nodes of declarative debugging session"""
+
+    def __init__(self):
+        super(SetZ3SuspectFunctions, self).__init__(
+            "set-z3-suspect-functions", gdb.COMMAND_USER)
+
+    def invoke(self, arg, from_tty):
+        global z3_functions
+        for z3_function in z3_functions[:int(arg)]:
+            gdb.execute("suspect-function " + z3_function)
+
+SetZ3SuspectFunctions()
+
+
 # Breakpoints
 
 
@@ -717,7 +859,6 @@ def recursive_dereference(value):
     if value.type.code == gdb.TYPE_CODE_PTR and value != 0x0:
         return recursive_dereference(value.dereference())
     elif value.type.code == gdb.TYPE_CODE_REF:
-        print()
         return value.referenced_value()
     return value
 
@@ -730,7 +871,10 @@ def get_value_from_symbol(symbol, frame):
         assert(frame.is_valid())
         my_value = symbol.value(frame)
         my_true_value = gdb.Value(recursive_dereference(my_value))
-        my_true_value.fetch_lazy()
+        try:
+            my_true_value.fetch_lazy()
+        except gdb.MemoryError:
+            return None
         return my_true_value
     return None
 
