@@ -34,6 +34,10 @@ Fixpoint sum_list (l : list nat) : nat :=
     nil => 0
   | n::tl => n + sum_list tl
   end.
+Search le.
+Lemma sum_list_ge_0 : forall l : list nat, 0 <= sum_list l.
+Proof. intros l. induction l. simpl. intuition. simpl. assert (a >= 0). induction a. intuition. apply le_0_n.  subst. intuition.
+Qed.
 Fixpoint and_list (l : list bool) : bool :=
   match l with
     nil => true
@@ -55,8 +59,11 @@ Lemma weight_childfree_node_eq_1: forall n:Node, n.(children) = nil -> weight n 
 Proof.
   - intros n H. induction n. simpl. assert (children0 = nil). apply H. subst. reflexivity.
 Qed.
-Lemma weight_ge_1: forall n:Node, weight n > 0.
-Proof. intros. induction n. induction children0.
+SearchPattern (_ + _ > _).
+Search Gt.
+Lemma weight_g_0: forall n:Node, 0 < weight n.
+Proof. intros n. induction n. induction children0. simpl. intuition. simpl. intuition.
+Qed.
 Eval compute in idk = idk.
 Fixpoint are_all_idk (node : Node) : bool :=
   match node.(children) with
