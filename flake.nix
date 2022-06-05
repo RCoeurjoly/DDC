@@ -258,7 +258,7 @@
 	        propagatedBuildInputs = [ coq ];
 	        enableParallelBuilding = true;
 
-	        installFlags = [ "COQMF_COQLIB=$(out)/lib/coq/${coq.coq-version}/" ];
+          installFlags = [ "COQMF_COQLIB=$(out)/lib/coq/${coq.coq-version}/" ];
         };
 
       packages.x86_64-linux.proofs = # Notice the reference to nixpkgs here.
@@ -266,11 +266,11 @@
         stdenv.mkDerivation {
           name = "proofs";
           src = self;
-          propagatedBuildInputs = [
+          buildInputs = [
             coq
             self.packages.x86_64-linux.alea
           ];
-          installFlags = "COQMF_COQLIB=$(out)/lib/coq/${coq.coq-version}/";
+          installFlags = [ "COQMF_COQLIB=$(out)/lib/coq/${coq.coq-version}/" ];
         };
 
       checks.x86_64-linux.rollback =
@@ -416,7 +416,7 @@
                                    # coqPackages.alea
                                    poetry
                                    python39Packages.pylint
-                                   python39Packages.autopep8 ] ++ [ alea ];
+                                   python39Packages.autopep8 ] ++ [ self.packages.x86_64-linux.alea ];
       });
 
       checks.x86_64-linux = {
