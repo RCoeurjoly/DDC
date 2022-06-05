@@ -56,10 +56,12 @@ Module MyM (Univ : Universe).
   Proof.
     intros a b H. split. destruct H as [H1 H2]. exact H2. intuition.
   Qed.
-  (* Lemma weight_childfree_node_eq_1: forall n:Node, n.(children) = nil -> weight n = 1. *)
-  (* Proof. *)
-  (*   - intros n H. induction n. simpl. assert (children0 = nil). apply H. subst. reflexivity. *)
-  (* Qed. *)
+
+  Lemma weight_childfree_node_eq_1: forall n:Node, n.(children) = nil -> weight n = (S 0).
+  Proof.
+    - intros n H. induction n. simpl. assert (children0 = nil). apply H. subst. reflexivity.
+  Qed.
+
   (* Lemma weight_g_0: forall n:Node, 0 < weight n. *)
   (* Proof. intros n. induction n. induction children0. simpl. intuition. simpl. intuition. *)
   (* Qed. *)
@@ -226,12 +228,20 @@ Module MyM (Univ : Universe).
 
   (* End Gamble. *)
   Locate distr.
+  Fixpoint lrange n :=
+    match n with
+    | O => cons O nil
+    | S m => cons (S m) (lrange m)
+    end.
   Fixpoint choose A (l : list A) : distr A :=
-  match l with
+    match l with
     | nil => distr_null A
     | cons hd tl => Mchoice ([1/]1+(length l)) (Munit hd) (choose tl)
-  end.
+    end.
 
+
+  Eval compute in choose (lrange (S 0)).
+  Eval compute in choose (yes::no::nil).
   (* Fixpoint choose A (l : list A) : distr A := *)
   (*   match l with *)
   (*   | nil => distr_null A *)
