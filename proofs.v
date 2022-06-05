@@ -239,13 +239,8 @@ Module MyM (Univ : Universe).
     | cons hd tl => Mchoice ([1/]1+(length l)) (Munit hd) (choose tl)
     end.
 
-
-  Eval compute in choose (lrange (S 0)).
-  Eval compute in choose (yes::no::nil).
-  (* Fixpoint choose A (l : list A) : distr A := *)
-  (*   match l with *)
-  (*   | nil => distr_null A *)
-  (*   | cons hd tl => Mchoice ([1/](length l)) (Munit hd) (choose tl) *)
-  (*   end. *)
+  Check choose (lrange (S 0)).
+  Check choose (yes::no::nil).
+  Search distr.
 
 End MyM.
