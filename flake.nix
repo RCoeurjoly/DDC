@@ -243,6 +243,36 @@
 
       packages.x86_64-linux.z3 = pkgs.z3;
 
+      packages.x86_64-linux.alea =
+        with import nixpkgs { system = "x86_64-linux"; };
+        stdenv.mkDerivation {
+	        name = "coq${coq.coq-version}-alea";
+
+	        src = fetchFromGitHub {
+	          owner = "coq-community";
+	          repo = "alea";
+	          rev = "v8.12.0";
+	          sha256 = "0vpq9yh1v131mpykh8r8javzybapfv65gxqx8palpxhsyid602mj";
+	        };
+
+	        propagatedBuildInputs = [ coq ];
+	        enableParallelBuilding = true;
+
+	        installFlags = [ "COQMF_COQLIB=$(out)/lib/coq/${coq.coq-version}/" ];
+        };
+
+      packages.x86_64-linux.proofs = # Notice the reference to nixpkgs here.
+        with import nixpkgs { system = "x86_64-linux"; };
+        stdenv.mkDerivation {
+          name = "proofs";
+          src = self;
+          propagatedBuildInputs = [
+            coq
+            self.packages.x86_64-linux.alea
+          ];
+          installFlags = "COQMF_COQLIB=$(out)/lib/coq/${coq.coq-version}/";
+        };
+
       checks.x86_64-linux.rollback =
         pkgs.stdenv.mkDerivation {
           name = "database_up_and_rollback";
@@ -386,7 +416,7 @@
                                    # coqPackages.alea
                                    poetry
                                    python39Packages.pylint
-                                   python39Packages.autopep8 ];
+                                   python39Packages.autopep8 ] ++ [ alea ];
       });
 
       checks.x86_64-linux = {

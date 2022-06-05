@@ -183,3 +183,9 @@ Fixpoint generic_debugging_algorithm (n : Node) : Node :=
 (* (*     In x l -> *) *)
 (* (*     alpha <= f x -> *) *)
 (* (*     [1/](length l) * alpha <= mu (choose l) f. *) *)
+
+Fixpoint choose A (l : list A) : distr A :=
+  match l with
+    | nil => distr_null A
+    | cons hd tl => Mchoice ([1/](length l)) (Munit hd) (choose tl)
+  end.
