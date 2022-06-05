@@ -9,3 +9,4 @@ tmp/
 *stats
 __pycache__
 .z3-trace
+.lia.cache

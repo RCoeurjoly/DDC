@@ -381,6 +381,9 @@
                                    # csmith
                                    z3
                                    # boogie
+                                   coq
+                                   coqPackages.mathcomp
+                                   # coqPackages.alea
                                    poetry
                                    python39Packages.pylint
                                    python39Packages.autopep8 ];
