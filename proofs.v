@@ -54,12 +54,38 @@ Proof. intros n. induction n. induction children0. simpl. intuition. simpl. intu
 Qed.
 Search list.
 Require Import Lia.
+Search nat.
 
-(* Lemma parent_weight_gt_child_weight: forall parent child:Node, In child (children parent) = True -> weight child < weight parent. *)
-(* Proof. intros parent child H. induction parent. simpl. induction children0. *)
-(*        + inversion H. exfalso. rewrite H1. constructor. *)
-(*        +  *)
-(* Qed. *)
+Lemma node_weight_gt_sum_children_weight: forall n:Node, weight n > list_sum (map (fun child => weight child) (children n)).
+Proof. intros n. induction n. simpl. induction children0.
+       + simpl. destruct (zerop 1). discriminate. assumption.
+       + simpl. intuition.
+Qed.
+SearchPattern (_ <= _).
+Lemma nat_in_list_le_list_sum: forall (l:list nat) (element: nat), In element l -> element <= list_sum l.
+Proof. intros l element H. induction l.
+       - simpl. inversion H.
+       - simpl. destruct H.
+         + subst. apply Nat.le_add_r.
+         + transitivity (list_sum l);auto.
+           rewrite Nat.add_comm. apply Nat.le_add_r.
+Qed.
+Lemma child_weight_le_sum_children_weight: forall (l:list Node) (child: Node), In child l -> list_sum (map (fun child => weight child) l) >= weight child.
+Proof. intros l child H. apply nat_in_list_le_list_sum. induction l.
+       - simpl. inversion H.
+       - simpl. destruct H.
+         + subst. intuition.
+         + subst. intuition.
+Qed.
+
+Lemma parent_weight_gt_child_weight: forall parent child:Node, In child (children parent) -> weight child < weight parent.
+Proof. intros parent child H. induction parent. simpl. induction children0.
+       + inversion H.
+       + inversion H.
+         - rewrite H0. intuition.
+         - intuition. transitivity (list_sum (map (fun child0 : Node => weight child0) children0)); auto.
+Qed.
+
 Eval compute in idk = idk.
 Scheme Equality for Correctness.
 Fixpoint are_all_idk (node : Node) : bool :=
@@ -145,14 +171,15 @@ Definition get_debugging_tree_from_tree (n : Node) : Node :=
   mkNode no (children n).
 Require Import Program.Wf.
 Lemma debugging_tree_of_tree_has_same_weight: forall n:Node, weight n = weight (get_debugging_tree_from_tree n).
-Proof. intros n. induction n. simpl. intuition.
+Proof. intros n. induction n. simpl. reflexivity.
 Qed.
-Check option Node.
-Check hd_error.
-Check hd_error (nil) = None.
-Print hd_error.
-Search Prop.
-Program Fixpoint generic_debugging_algorithm (n : Node) {measure (weight n)} : {m: Node | and (eq_true (is_debugging_tree m)) (children m = nil)} :=
+Lemma children_of_debugging_tree_remain_unchanged: forall n:Node, children n = children (get_debugging_tree_from_tree n).
+Proof. intros n. induction n. simpl. reflexivity.
+Qed.
+Lemma debugging_tree_root_node_is_incorrect: forall n:Node, correctness (get_debugging_tree_from_tree n) = no.
+Proof. intros n. induction n. simpl. reflexivity.
+Qed.
+Program Fixpoint generic_debugging_algorithm (n : Node) {measure (weight n)}: Node :=
   match children n with
     nil => n
   | head::tail => generic_debugging_algorithm (get_debugging_tree_from_tree head)
@@ -160,7 +187,9 @@ Program Fixpoint generic_debugging_algorithm (n : Node) {measure (weight n)} : {
 Next Obligation.
   induction n. simpl. induction children0.
   + assert (head::tail = nil). apply Heq_anonymous. induction head.  simpl. exfalso; discriminate.
-  +
+  + assert (head::tail = a::children0). apply Heq_anonymous. assert (tail = children0). injection H. intuition. assert (head = a). injection H. intuition. intuition. simpl. rewrite <- H1. rewrite <- H0.
+
+
 (* From ALEA Require Import Cover. *)
 (* (* From ALEA Require Import Misc. *) *)
 (* (* From ALEA Require Import Monads. *) *)
