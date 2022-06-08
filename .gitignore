@@ -10,3 +10,12 @@ tmp/
 __pycache__
 .z3-trace
 .lia.cache
+.CoqMakefile.d
+.coqdeps.d
+.proofs.aux
+CoqMakefile
+CoqMakefile.conf
+proofs.glob
+proofs.vo
+proofs.vok
+proofs.vos

@@ -7,7 +7,11 @@
 
   outputs = { self, nixpkgs, flake-utils }:
     let
+
       pkgs = nixpkgs.legacyPackages.x86_64-linux;
+
+      ncoq = pkgs.coq_8_10;
+      ncoqPackages = pkgs.coqPackages_8_10;
 
       myAppEnv = pkgs.poetry2nix.mkPoetryEnv {
         projectDir = ./.;
@@ -52,18 +56,58 @@
           [ pkgs.poetry2nix.defaultPoetryOverrides customOverrides ];
       };
 
-        cfg = {  # default configuration
-          mysqlPort = "3307";
-          mysqlPassword = "admin";
-        };
+      cfg = {  # default configuration
+        mysqlPort = "3307";
+        mysqlPassword = "admin";
+      };
 
-        rootDir   = "/";
-        mysqlDir  = "${rootDir}/mysql";
-        mysqlConf     = (import ./mysql/config/mysql.conf.nix) {inherit pkgs mysqlDir; mysqlPort = cfg.mysqlPort; };
+      rootDir   = "/";
+      mysqlDir  = "${rootDir}/mysql";
+      mysqlConf     = (import ./mysql/config/mysql.conf.nix) {inherit pkgs mysqlDir; mysqlPort = cfg.mysqlPort; };
 
       packageName = "declarative-debugger-for-cpp";
     in {
       packages.x86_64-linux.${packageName} = app;
+      packages.x86_64-linux.ceres = ncoqPackages.callPackage
+        ( { coq, stdenv, fetchFromGithub }:
+          stdenv.mkDerivation {
+	          name = "coq${coq.coq-version}-ceres";
+
+	          src = pkgs.fetchFromGitHub {
+	            owner = "Lysxia";
+	            repo = "coq-ceres";
+	            rev = "4e682cf97ec0006a9d5b3f98e648e5d69206b614";
+	            sha256 = "0n3bjsh7cb11y3kv467m7xm0iygrygw7flblbcngklh4gy5qi5qk";
+	          };
+
+	          buildInputs = with coq.ocamlPackages; [ ocaml camlp5 ];
+	          propagatedBuildInputs = [ coq ];
+	          enableParallelBuilding = true;
+
+	          installFlags = [ "COQLIB=$(out)/lib/coq/${coq.coq-version}/" ];
+          } ) { } ;
+
+      packages.x86_64-linux.vellvm =
+        with import nixpkgs { system = "x86_64-linux"; };
+        stdenv.mkDerivation {
+
+        name = "coq${coq.coq-version}-vellvm";
+
+        src = fetchGit {
+          url = "https://github.com/vellvm/vellvm";
+        };
+
+        buildInputs = [ git ncoq ocamlPackages.menhir dune ncoqPackages.flocq
+		                    ncoqPackages.coq-ext-lib ncoqPackages.paco ceres ocaml ];
+
+        buildPhase = ''
+      cd src && make
+  '';
+
+        installFlags = [ "COQLIB=$(out)/lib/coq/${coq.coq-version}/" ];
+      };
+
+
 
       packages.x86_64-linux.default = self.packages.x86_64-linux.quicksort;
 
@@ -270,7 +314,7 @@
             coq
             self.packages.x86_64-linux.alea
           ];
-          installFlags = [ "COQMF_COQLIB=$(out)/lib/coq/${coq.coq-version}/" ];
+          installFlags = [ "COQMF_COQLIB=$(out)/lib/coq/${coq.coq-version}+alpha/" ];
         };
 
       checks.x86_64-linux.rollback =
@@ -408,12 +452,10 @@
         buildInputs = with pkgs; [ gdb
                                    rr
                                    glibc
-                                   # csmith
                                    z3
-                                   # boogie
+                                   emacs
                                    coq
                                    coqPackages.mathcomp
-                                   # coqPackages.alea
                                    poetry
                                    python39Packages.pylint
                                    python39Packages.autopep8 ] ++ [ self.packages.x86_64-linux.alea ];

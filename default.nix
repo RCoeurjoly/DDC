@@ -1,16 +1,40 @@
 with import <nixpkgs> {};
 
+let
+  ncoq = coq_8_10;
+  ncoqPackages = coqPackages_8_10;
+  ceres = ncoqPackages.callPackage
+    ( { coq, stdenv, fetchFromGithub }:
+      stdenv.mkDerivation {
+	name = "coq${coq.coq-version}-ceres";
+
+	src = fetchFromGitHub {
+	  owner = "Lysxia";
+	  repo = "coq-ceres";
+	  rev = "4e682cf97ec0006a9d5b3f98e648e5d69206b614";
+	  sha256 = "0n3bjsh7cb11y3kv467m7xm0iygrygw7flblbcngklh4gy5qi5qk";
+	};
+
+	buildInputs = with coq.ocamlPackages; [ ocaml camlp5 ];
+	propagatedBuildInputs = [ coq ];
+	enableParallelBuilding = true;
+
+	installFlags = [ "COQLIB=$(out)/lib/coq/${coq.coq-version}/" ];
+      } ) { } ;
+in
 stdenv.mkDerivation {
-  name = "quicksort";
-  src = ./.;
-  dontStrip = true;
+  name = "coq${coq.coq-version}-vellvm";
 
-  buildInputs = [ gdb python3 rr];
+  src = fetchGit {
+    url = "https://github.com/vellvm/vellvm";
+  };
 
-  buildPhase = "gcc -g -o quicksort quicksort.cpp -lstdc++";
+  buildInputs = [ git ncoq ocamlPackages.menhir dune ncoqPackages.flocq
+		  ncoqPackages.coq-ext-lib ncoqPackages.paco ceres ocaml ];
 
-  installPhase = ''
-    mkdir -p $out/bin
-    cp quicksort $out/bin/
+  buildPhase = ''
+      cd src && make
   '';
+
+  installFlags = [ "COQLIB=$(out)/lib/coq/${coq.coq-version}/" ];
 }
