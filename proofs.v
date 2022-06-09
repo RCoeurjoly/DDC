@@ -41,12 +41,12 @@ Fixpoint weight (node : Node) : nat :=
   end.
 Lemma commutativity : forall a b:Prop, a/\b -> b/\a.
 Proof.
-  intros a b H. split. destruct H as [H1 H2]. exact H2. intuition.
+  intros a b H. split. destruct H as [H1 H2]. exact H2. destruct H as [H1 H2]. exact H1.
 Qed.
 
 Lemma weight_childfree_node_eq_1: forall n:Node, n.(children) = nil -> weight n = (S 0).
 Proof.
-  - intros n H. induction n. simpl. assert (children0 = nil). apply H. subst. reflexivity.
+  - intros n H. induction n. simpl. assert (children0 = nil). apply H. rewrite H0. reflexivity.
 Qed.
 
 Lemma weight_g_0: forall n:Node, 0 < weight n.
@@ -61,6 +61,7 @@ Proof. intros n. induction n. simpl. induction children0.
        + simpl. destruct (zerop 1). discriminate. assumption.
        + simpl. intuition.
 Qed.
+
 SearchPattern (_ <= _).
 Lemma nat_in_list_le_list_sum: forall (l:list nat) (element: nat), In element l -> element <= list_sum l.
 Proof. intros l element H. induction l.
@@ -70,6 +71,7 @@ Proof. intros l element H. induction l.
          + transitivity (list_sum l);auto.
            rewrite Nat.add_comm. apply Nat.le_add_r.
 Qed.
+
 Lemma child_weight_le_sum_children_weight: forall (l:list Node) (child: Node), In child l -> list_sum (map (fun child => weight child) l) >= weight child.
 Proof. intros l child H. apply nat_in_list_le_list_sum. induction l.
        - simpl. inversion H.
@@ -77,13 +79,13 @@ Proof. intros l child H. apply nat_in_list_le_list_sum. induction l.
          + subst. intuition.
          + subst. intuition.
 Qed.
-
+SearchPattern (_ < _ + _).
 Lemma parent_weight_gt_child_weight: forall parent child:Node, In child (children parent) -> weight child < weight parent.
 Proof. intros parent child H. induction parent. simpl. induction children0.
        + inversion H.
        + inversion H.
          - rewrite H0. intuition.
-         - intuition. transitivity (list_sum (map (fun child0 : Node => weight child0) children0)); auto.
+         -  intuition. assert (weight child <= list_sum (map (fun child0 : Node => weight child0) children0)). apply child_weight_le_sum_children_weight. assumption. intuition. assert (weight a > 0). apply weight_g_0. assert (weight child < (weight a + list_sum (map (fun child0 : Node => weight child0) children0))). inversion H2. rewrite Nat.add_comm. apply Nat.lt_add_pos_r. assumption. assert (weight child < S m). intuition. rewrite Nat.add_comm. intuition. intuition.
 Qed.
 
 Eval compute in idk = idk.
