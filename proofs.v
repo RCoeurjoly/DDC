@@ -37,7 +37,7 @@ Check 1::nil.
 Fixpoint weight (node : Node) : nat :=
   match node.(children) with
     nil => 1
-  | children => 1 + list_sum (map (fun child => weight child) (children))
+  | children => S (list_sum (map (fun child => weight child) (children)))
   end.
 Lemma commutativity : forall a b:Prop, a/\b -> b/\a.
 Proof.
@@ -181,15 +181,37 @@ Qed.
 Lemma debugging_tree_root_node_is_incorrect: forall n:Node, correctness (get_debugging_tree_from_tree n) = no.
 Proof. intros n. induction n. simpl. reflexivity.
 Qed.
+
+Lemma debugging_tree_of_tree_with_all_children_idk_is_debugging_tree: forall n:Node, eq_true (and_list (map (fun child => are_all_idk child) (children n))) -> eq_true (is_debugging_tree (get_debugging_tree_from_tree n)).
+Proof. intros n H. induction n. induction children0.
+       + intuition.
+       + intuition.
+Qed.
+Obligation Tactic := intros.
+
 Program Fixpoint generic_debugging_algorithm (n : Node) {measure (weight n)}: Node :=
   match children n with
     nil => n
   | head::tail => generic_debugging_algorithm (get_debugging_tree_from_tree head)
   end.
 Next Obligation.
-  induction n. simpl. induction children0.
-  + assert (head::tail = nil). apply Heq_anonymous. induction head.  simpl. exfalso; discriminate.
-  + assert (head::tail = a::children0). apply Heq_anonymous. assert (tail = children0). injection H. intuition. assert (head = a). injection H. intuition. intuition. simpl. rewrite <- H1. rewrite <- H0.
+  assert (In head (children n)). induction (children n). inversion Heq_anonymous.  simpl. left. injection Heq_anonymous. intuition. assert (weight head = weight (get_debugging_tree_from_tree head)). apply debugging_tree_of_tree_has_same_weight. rewrite <- H0. apply parent_weight_gt_child_weight. assumption.
+Qed.
+Next Obligation.
+  intuition.
+Qed.
+Check generic_debugging_algorithm.
+Next Obligation.
+  apply debugging_tree_of_tree_with_all_children_idk_is_debugging_tree. apply n.
+Qed.
+
+
+
+
+Lemma generic_debugging_algorithm_return_incorrect_childfree_node_when_given_debugging_tree: forall n:Node, eq_true (is_debugging_tree n) -> correctness (generic_debugging_algorithm n) = no.
+Proof. intros n H. intuition.
+       + induction n. induction children0. intuition.
+         - intuition.
 
 
 (* From ALEA Require Import Cover. *)
