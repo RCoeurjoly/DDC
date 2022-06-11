@@ -62,7 +62,10 @@ Eval compute in and_list (True::True::True::nil).
 Check 1::nil.
 
 Fixpoint weight (node : Node) : nat :=
-  S (list_sum (map (fun child => weight child) (children node))).
+  match children node with
+    nil => 1
+  | children => S (list_sum (map (fun child => weight child) (children)))
+  end.
 
 Lemma weight_childfree_node_eq_1: forall n:Node, n.(children) = nil -> weight n = (S 0).
 Proof.
