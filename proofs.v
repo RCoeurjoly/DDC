@@ -205,13 +205,16 @@ Proof.
          - apply H2.
 Qed.
 
-Lemma debugging_tree_of_idk_tree_is_debugging_tree: forall n:Node, eq_true (are_all_idk n) -> eq_true (is_debugging_tree (get_debugging_tree_from_tree n)).
-Proof. intros n H. assert (correctness (get_debugging_tree_from_tree n) = no). apply debugging_tree_root_node_is_incorrect. assert (eq_true (and_list (map (fun child => are_all_idk child) (children n)))). apply H. induction n. induction children0.
-       + intuition.
-       + intuition. assert (get_debugging_tree_from_tree {|
-correctness := correctness0;
-           children := a :: children0
-         |}). apply debugging_tree_root_node_is_incorrect.
+Lemma debugging_tree_of_idk_tree_is_debugging_tree: forall n:Node, are_all_idk n -> is_debugging_tree (get_debugging_tree_from_tree n).
+Proof.
+  intros n H.
+  unfold is_debugging_tree.
+  split.
+  + apply debugging_tree_root_node_is_incorrect.
+  + assert (and_list (map (fun child : Node => are_all_idk child) n.(children))).
+    apply are_all_idk_implies_children_all_idk.
+  - apply H.
+  - assert (children n = children (get_debugging_tree_from_tree n)). apply children_of_debugging_tree_remain_unchanged. rewrite <- H1. apply H0.
 Qed.
 
 Show Obligation Tactic.
