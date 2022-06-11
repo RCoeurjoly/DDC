@@ -107,11 +107,10 @@ Qed.
 Eval compute in are_all_idk node1.
 Definition node4 := mkNode idk (node1::node2::nil).
 Eval compute in are_all_idk node4.
-Definition is_debugging_tree (node : Node) : bool :=
-  match node.(children) with
-    nil => Correctness_beq node.(correctness) no
-  | children => andb (Correctness_beq node.(correctness) no) (and_list (map (fun child => are_all_idk child) (children)))
-  end.
+
+Definition is_debugging_tree (node : Node) : Prop :=
+  and (node.(correctness) = no) (and_list (map (fun child => are_all_idk child) (children node))).
+
 (* Extraction pred. *)
 (* Extraction is_debugging_tree. *)
 
@@ -121,8 +120,8 @@ Eval compute in is_debugging_tree node5.
 (* Eval compute in list_sum (map (fun x => x + 3) (1::2::5::nil)). *)
 Eval compute in weight node3.
 Eval compute in is_debugging_tree node5.
-Check andb (is_debugging_tree node1) (Nat.ltb 0 (length (children node1))).
-Eval compute in andb (is_debugging_tree node1) (Nat.ltb 0 (length (children node1))).
+
+
 Definition top_down_strategy (n : Node) : (bool * Node) :=
   match correctness n with
     no => match children n with
@@ -191,10 +190,19 @@ Lemma debugging_tree_root_node_is_incorrect: forall n:Node, correctness (get_deb
 Proof. intros n. induction n. simpl. reflexivity.
 Qed.
 
-Lemma debugging_tree_of_tree_with_all_children_idk_is_debugging_tree: forall n:Node, eq_true (and_list (map (fun child => are_all_idk child) (children n))) -> eq_true (is_debugging_tree (get_debugging_tree_from_tree n)).
-Proof. intros n H. induction n. induction children0.
-       + intuition.
-       + intuition.
+Lemma debugging_tree_of_tree_with_all_children_idk_is_debugging_tree: forall n:Node, and_list (map (fun child => are_all_idk child) (children n)) -> is_debugging_tree (get_debugging_tree_from_tree n).
+Proof.
+  intros n H.
+  simpl.
+  assert (children n = children (get_debugging_tree_from_tree n)).
+  apply children_of_debugging_tree_remain_unchanged.
+  assert (correctness (get_debugging_tree_from_tree n) = no).
+  apply debugging_tree_root_node_is_incorrect.
+  assert (and_list (map (fun child : Node => are_all_idk child) (get_debugging_tree_from_tree n).(children))).
+       + rewrite <- H0. apply H.
+       + unfold is_debugging_tree. split.
+         - apply H1.
+         - apply H2.
 Qed.
 
 Lemma debugging_tree_of_idk_tree_is_debugging_tree: forall n:Node, eq_true (are_all_idk n) -> eq_true (is_debugging_tree (get_debugging_tree_from_tree n)).
