@@ -187,6 +187,7 @@ Proof. intros n H. induction n. induction children0.
        + intuition.
        + intuition.
 Qed.
+Show Obligation Tactic.
 Obligation Tactic := intros.
 
 Program Fixpoint generic_debugging_algorithm (n : Node) {measure (weight n)}: Node :=
@@ -201,17 +202,19 @@ Next Obligation.
   intuition.
 Qed.
 Check generic_debugging_algorithm.
-Next Obligation.
-  apply debugging_tree_of_tree_with_all_children_idk_is_debugging_tree. apply n.
-Qed.
+Show Obligation Tactic.
+Obligation Tactic := Tactics.program_simpl.
+Show Obligation Tactic.
+
+Lemma generic_debugging_algorithm_returns_childfree_node: forall n:Node, children (generic_debugging_algorithm n) = nil.
+Proof. intros n. induction n. induction children0.
+       +
 
 
-
-
-Lemma generic_debugging_algorithm_return_incorrect_childfree_node_when_given_debugging_tree: forall n:Node, eq_true (is_debugging_tree n) -> correctness (generic_debugging_algorithm n) = no.
+Lemma generic_debugging_algorithm_returns_incorrect_childfree_node_when_given_debugging_tree: forall n:Node, eq_true (is_debugging_tree n) -> correctness (generic_debugging_algorithm n) = no.
 Proof. intros n H. intuition.
-       + induction n. induction children0. intuition.
-         - intuition.
+       + induction n. induction children0.
+         - intuition. simpl.
 
 
 (* From ALEA Require Import Cover. *)
