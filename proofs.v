@@ -27,12 +27,12 @@ Eval compute in correctness node3.
 (* Lemma list_sum_ge_0 : forall l : list nat, 0 <= list_sum l. *)
 (* Proof. intros l. induction l. simpl. intuition. simpl. assert (a >= 0). induction a. intuition. apply le_0_n.  subst. induction a. intuition.  *)
 (* Qed. *)
-Fixpoint and_list (l : list bool) : bool :=
+Fixpoint and_list (l : list Prop) : Prop :=
   match l with
-    nil => true
-  | n::tl => andb n (and_list tl)
+    nil => True
+  | n::tl => and n (and_list tl)
   end.
-Eval compute in and_list (true::true::true::nil).
+Eval compute in and_list (True::True::True::nil).
 Check 1::nil.
 Fixpoint weight (node : Node) : nat :=
   match node.(children) with
@@ -49,7 +49,7 @@ Proof.
   - intros n H. induction n. simpl. assert (children0 = nil). apply H. rewrite H0. reflexivity.
 Qed.
 
-Lemma weight_g_0: forall n:Node, 0 < weight n.
+Lemma weight_gt_0: forall n:Node, 0 < weight n.
 Proof. intros n. induction n. induction children0. simpl. intuition. simpl. intuition.
 Qed.
 Search list.
@@ -85,16 +85,25 @@ Proof. intros parent child H. induction parent. simpl. induction children0.
        + inversion H.
        + inversion H.
          - rewrite H0. intuition.
-         -  intuition. assert (weight child <= list_sum (map (fun child0 : Node => weight child0) children0)). apply child_weight_le_sum_children_weight. assumption. intuition. assert (weight a > 0). apply weight_g_0. assert (weight child < (weight a + list_sum (map (fun child0 : Node => weight child0) children0))). inversion H2. rewrite Nat.add_comm. apply Nat.lt_add_pos_r. assumption. assert (weight child < S m). intuition. rewrite Nat.add_comm. intuition. intuition.
+         -  intuition. assert (weight child <= list_sum (map (fun child0 : Node => weight child0) children0)). apply child_weight_le_sum_children_weight. assumption. intuition. assert (weight a > 0). apply weight_gt_0. assert (weight child < (weight a + list_sum (map (fun child0 : Node => weight child0) children0))). inversion H2. rewrite Nat.add_comm. apply Nat.lt_add_pos_r. assumption. assert (weight child < S m). intuition. rewrite Nat.add_comm. intuition. intuition.
 Qed.
 
 Eval compute in idk = idk.
 Scheme Equality for Correctness.
-Fixpoint are_all_idk (node : Node) : bool :=
+Fixpoint are_all_idk (node : Node) : Prop :=
   match node.(children) with
-    nil => Correctness_beq node.(correctness) idk
-  | children => andb (Correctness_beq node.(correctness) idk) (and_list (map (fun child => are_all_idk child) (children)))
+    nil => node.(correctness) = idk
+  | children => and (node.(correctness) = idk) (and_list (map (fun child => are_all_idk child) (children)))
   end.
+
+Lemma are_all_idk_implies_children_all_idk: forall n : Node, are_all_idk n -> and_list (map (fun child => are_all_idk child) (children n)).
+Proof. intros n H. induction n. induction children0.
+       + inversion H. simpl. constructor.
+       + inversion H. simpl. split.
+       - inversion H. apply H3.
+       - apply H1.
+Qed.
+
 Eval compute in are_all_idk node1.
 Definition node4 := mkNode idk (node1::node2::nil).
 Eval compute in are_all_idk node4.
@@ -187,6 +196,16 @@ Proof. intros n H. induction n. induction children0.
        + intuition.
        + intuition.
 Qed.
+
+Lemma debugging_tree_of_idk_tree_is_debugging_tree: forall n:Node, eq_true (are_all_idk n) -> eq_true (is_debugging_tree (get_debugging_tree_from_tree n)).
+Proof. intros n H. assert (correctness (get_debugging_tree_from_tree n) = no). apply debugging_tree_root_node_is_incorrect. assert (eq_true (and_list (map (fun child => are_all_idk child) (children n)))). apply H. induction n. induction children0.
+       + intuition.
+       + intuition. assert (get_debugging_tree_from_tree {|
+correctness := correctness0;
+           children := a :: children0
+         |}). apply debugging_tree_root_node_is_incorrect.
+Qed.
+
 Show Obligation Tactic.
 Obligation Tactic := intros.
 
@@ -208,7 +227,7 @@ Show Obligation Tactic.
 
 Lemma generic_debugging_algorithm_returns_childfree_node: forall n:Node, children (generic_debugging_algorithm n) = nil.
 Proof. intros n. induction n. induction children0.
-       +
+       + unfold generic_debugging_algorithm. simpl. intuition. auto. eauto.
 
 
 Lemma generic_debugging_algorithm_returns_incorrect_childfree_node_when_given_debugging_tree: forall n:Node, eq_true (is_debugging_tree n) -> correctness (generic_debugging_algorithm n) = no.
