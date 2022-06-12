@@ -54,21 +54,21 @@ Proof.
   + reflexivity.
 Qed.
 
-Lemma head_of_non_empty_children_is_in_parent : forall parent child : Node, (Datatypes.length (children parent)) > 0 /\ hd (mkNode "I don't exist"%string idk nil) (children parent) = child -> is_node_in_tree child parent.
+Lemma head_of_non_empty_children_is_in_parent : forall parent child : Node, (children parent) <> nil /\ hd (mkNode "I don't exist"%string idk nil) (children parent) = child -> is_node_in_tree child parent.
 Proof.
   intros parent child H.
   induction parent.
   simpl.
+  intuition.
   right.
-  inversion H.
   induction children0.
-  + inversion H0.
-  + assert (a = child).
+  + simpl.
     intuition.
+  + assert (a = child).
     intuition.
     simpl.
     left.
-    rewrite H2.
+    rewrite H.
     apply node_is_in_itself.
 Qed.
 
@@ -611,11 +611,9 @@ Next Obligation.
     injection Heq_anonymous.
     intuition.
   - assert (is_node_in_tree head (proj1_sig n)).
-    subst.
-    simpl.
-
-  intuition.
-  simpl.
+    + apply head_of_non_empty_children_is_in_parent.
+      split.
+      apply Heq_anonymous.
   intuition.
   simpl.
   inversion H.
