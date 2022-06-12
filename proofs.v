@@ -14,13 +14,29 @@ Inductive Correctness : Type :=
 | trusted : Correctness
 | idk : Correctness.
 
-Inductive Node : Type := mkNode
-                           {
-                           content : string
-                           ;correctness : Correctness
-                           ; children : list Node
-                           }.
 
+Inductive ComparableNode : Type :=
+  mkComparableNode
+    {
+      ComparableNodeContent : string
+    ; ComparableNodeChildren : list ComparableNode
+    }.
+
+Inductive Node : Type :=
+  mkNode
+    {
+      content : string
+    ;correctness : Correctness
+    ; children : list Node
+    }.
+
+Fixpoint get_comparable_node_from_node (n: Node) : ComparableNode :=
+  mkComparableNode (content n) (map (fun child => get_comparable_node_from_node child) (children n)).
+
+Check Node_rect.
+Check Node_ind.
+Check Node_rec.
+Check Node_sind.
 Fixpoint or_list (l : list Prop) : Prop :=
   match l with
     nil => False
@@ -28,11 +44,22 @@ Fixpoint or_list (l : list Prop) : Prop :=
   end.
 Fixpoint is_node_in_tree (n m : Node) : Prop :=
   or (content n = content m) (or_list (map (fun child => is_node_in_tree n child) (children m))).
+
+Lemma node_is_in_itself : forall n : Node, is_node_in_tree n n.
+Proof.
+  intros n.
+  induction n.
+  simpl.
+  left.
+  + reflexivity.
+Qed.
+
 Example HelloWorld := "Hello world!"%string.
 Check HelloWorld.
 Definition node1 := mkNode "node1"%string idk nil.
 Definition node2 := mkNode "node2"%string idk nil.
 Definition node3 := mkNode "node3"%string trusted (node1::node2::nil).
+Eval compute in get_comparable_node_from_node node1 = get_comparable_node_from_node node1.
 Eval compute in correctness node3.
 Lemma list_sum_ge_0 : forall l : list nat, 0 <= list_sum l.
 Proof.
@@ -56,6 +83,16 @@ Fixpoint and_list (l : list Prop) : Prop :=
     nil => True
   | hd::tl => and hd (and_list tl)
   end.
+Search list.
+Print Datatypes.length.
+SearchPattern (_ -> _ -> Prop _ list).
+Print app.
+Check node1 = node1.
+SearchPattern (nat -> nat -> bool).
+
+Eval compute in Datatypes.length (0::nil).
+
+Search nat.
 
 Lemma and_list_true_implies_element_in_list_true: forall (A : Type) (l : list A) (element : A) (x : A -> Prop), and_list (map (fun item => x item) l) /\ In element l -> x element.
 Proof.
@@ -352,6 +389,14 @@ Proof.
     rewrite <- H1.
     exact H0.
 Qed.
+SearchPattern (_ = _ -> _ = _).
+Lemma comparable_node_of_debugging_tree_of_tree_is_comparable_node: forall n:Node, get_comparable_node_from_node (get_debugging_tree_from_tree n) = get_comparable_node_from_node n.
+Proof.
+  intros n.
+  induction n.
+  simpl.
+  reflexivity.
+Qed.
 
 Obligation Tactic := intros.
 
@@ -381,12 +426,19 @@ Qed.
 
 Obligation Tactic := intros.
 Obligation Tactic := Tactics.program_simpl.
-Program Fixpoint generic_debugging_algorithm_dp (n : {n: Node | is_debugging_tree n}) {measure (weight n)}: {m: Node | is_debugging_tree m /\ children m = nil} :=
+Program Fixpoint generic_debugging_algorithm_dp (n : {n: Node | is_debugging_tree n}) {measure (weight n)}: {m: Node | is_debugging_tree m /\ children m = nil /\ is_node_in_tree m n} :=
   match children n with
     nil => n
   | head::tail => generic_debugging_algorithm_dp (get_debugging_tree_from_tree head)
   end.
 Obligations of generic_debugging_algorithm_dp.
+Next Obligation.
+  split.
+  + exact H.
+  + split.
+    - reflexivity.
+    - apply node_is_in_itself.
+Qed.
 Next Obligation.
   inversion H.
   assert (are_all_idk head).
@@ -421,5 +473,13 @@ Next Obligation.
       apply parent_weight_gt_child_weight.
       exact H.
 Qed.
-
+Obligation Tactic := intros.
+Obligation Tactic := Tactics.program_simpl.
+Next Obligation.
+  intros.
+  simpl.
+  intuition.
+  + simpl.
+    intuition.
+Obligations of generic_debugging_algorithm_dp.
 Obligation Tactic := Tactics.program_simpl.
