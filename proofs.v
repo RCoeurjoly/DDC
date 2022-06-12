@@ -57,6 +57,18 @@ Proof.
       exact H.
     - inversion H0. intuition.
 Qed.
+Search (nat -> Prop).
+
+Fact example: and_list (map (fun item => Nat.Even item) (0::nil)) -> Nat.Even 0.
+Proof.
+  intro H.
+  assert (In 0 (0::nil)).
+  + intuition.
+  + apply and_list_true_implies_element_in_list_true with (0::nil).
+    split.
+    - exact H.
+    - exact H0.
+Qed.
 
 Eval compute in and_list (True::True::True::nil).
 Check 1::nil.
@@ -353,6 +365,7 @@ Next Obligation.
   intuition.
 Qed.
 
+
 Obligation Tactic := intros.
 Obligation Tactic := Tactics.program_simpl.
 Program Fixpoint generic_debugging_algorithm_dp (n : {n: Node | is_debugging_tree n}) {measure (weight n)}: Node :=
@@ -371,28 +384,18 @@ Next Obligation.
     left.
     injection Heq_anonymous.
     intuition.
-  - apply H1.
-      apply Heq_anonymous.
-  intuition.
-  assert (correctness head = idk).
-  +
-  intuition.
-  assert (is_debugging_tree (n)).
-  apply H.
-  + split.
-  - apply is_debugging_tree_true.
-    intuition.
-  apply debu
-  apply debugging_tree_of_idk_tree_is_debugging_tree.
-  assert (is_debugging_tree (n)).
-  Check n.
-  assert (and_list (map (fun child : Node => are_all_idk child) (proj1_sig n).(children))).
-  apply generic_debugging_algorithm_dp.
-  inversion n.
-  assert  (are_all_idk head).
-  assert (are_all_idk head).
-  assert (In head (children n)).
-  + induction (children n).
+  - apply and_list_true_implies_element_in_list_true with (children n).
+    split.
+    exact H1.
+    exact H2.
+    + apply debugging_tree_of_idk_tree_is_debugging_tree.
+      exact H2.
+Qed.
+Obligation Tactic := intros.
+Obligations of generic_debugging_algorithm_dp.
+Next Obligation.
+  assert (In head (children (proj1_sig n))).
+  + induction (children (proj1_sig n)).
     - inversion Heq_anonymous.
     - simpl.
       left.
@@ -400,14 +403,11 @@ Next Obligation.
       intuition.
   + assert (weight head = weight (get_debugging_tree_from_tree head)).
     - apply debugging_tree_of_tree_has_same_weight.
-    - rewrite <- H0.
+    - simpl.
+      assert (match head.(children) with | [] => 1 | n0 :: l => S (weight n0 + list_sum (map (fun child : Node => weight child) l)) end = weight (get_debugging_tree_from_tree head)). intuition. rewrite H1. rewrite <- H0.
       apply parent_weight_gt_child_weight.
       exact H.
 Qed.
-Next Obligation.
-  intuition.
-Qed.
-
 
 
 Obligation Tactic := Tactics.program_simpl.
