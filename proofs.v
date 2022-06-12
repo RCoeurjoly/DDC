@@ -368,7 +368,7 @@ Qed.
 
 Obligation Tactic := intros.
 Obligation Tactic := Tactics.program_simpl.
-Program Fixpoint generic_debugging_algorithm_dp (n : {n: Node | is_debugging_tree n}) {measure (weight n)}: Node :=
+Program Fixpoint generic_debugging_algorithm_dp (n : {n: Node | is_debugging_tree n}) {measure (weight n)}: {m: Node | is_debugging_tree m /\ children m = nil} :=
   match children n with
     nil => n
   | head::tail => generic_debugging_algorithm_dp (get_debugging_tree_from_tree head)
@@ -408,7 +408,6 @@ Next Obligation.
       apply parent_weight_gt_child_weight.
       exact H.
 Qed.
-
 
 Obligation Tactic := Tactics.program_simpl.
 
