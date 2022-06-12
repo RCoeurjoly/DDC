@@ -6,6 +6,7 @@ Extraction Language OCaml.
 Set Printing Projections.
 Require Import Bool.
 Require Import List.
+Require Import String.
 
 Inductive Correctness : Type :=
 | yes : Correctness
@@ -14,13 +15,24 @@ Inductive Correctness : Type :=
 | idk : Correctness.
 
 Inductive Node : Type := mkNode
-                           { correctness : Correctness
+                           {
+                           content : string
+                           ;correctness : Correctness
                            ; children : list Node
                            }.
 
-Definition node1 := mkNode idk nil.
-Definition node2 := mkNode idk nil.
-Definition node3 := mkNode trusted (node1::node2::nil).
+Fixpoint or_list (l : list Prop) : Prop :=
+  match l with
+    nil => False
+  | hd::tl => or hd (or_list tl)
+  end.
+Fixpoint is_node_in_tree (n m : Node) : Prop :=
+  or (content n = content m) (or_list (map (fun child => is_node_in_tree n child) (children m))).
+Example HelloWorld := "Hello world!"%string.
+Check HelloWorld.
+Definition node1 := mkNode "node1"%string idk nil.
+Definition node2 := mkNode "node2"%string idk nil.
+Definition node3 := mkNode "node3"%string trusted (node1::node2::nil).
 Eval compute in correctness node3.
 Lemma list_sum_ge_0 : forall l : list nat, 0 <= list_sum l.
 Proof.
@@ -57,6 +69,7 @@ Proof.
       exact H.
     - inversion H0. intuition.
 Qed.
+
 Search (nat -> Prop).
 
 Fact example: and_list (map (fun item => Nat.Even item) (0::nil)) -> Nat.Even 0.
@@ -202,7 +215,7 @@ Proof.
 Qed.
 
 Eval compute in are_all_idk node1.
-Definition node4 := mkNode idk (node1::node2::nil).
+Definition node4 := mkNode "node4"%string idk (node1::node2::nil).
 Eval compute in are_all_idk node4.
 
 Definition is_debugging_tree (node : Node) : Prop :=
@@ -220,23 +233,23 @@ Qed.
 (* Extraction is_debugging_tree. *)
 
 Eval compute in is_debugging_tree node1.
-Definition node5 := mkNode no (node1::nil).
+Definition node5 := mkNode "node5"%string no (node1::nil).
 Eval compute in is_debugging_tree node5.
 (* Eval compute in list_sum (map (fun x => x + 3) (1::2::5::nil)). *)
 Eval compute in weight node3.
 Eval compute in is_debugging_tree node5.
 
 
-Definition top_down_strategy (n : Node) : (bool * Node) :=
-  match correctness n with
-    no => match children n with
-           nil => (false, mkNode idk nil)
-         | _ => (true, hd (mkNode idk nil) (children n))
-         end
-  | _ => (false, mkNode idk nil)
-  end.
+(* Definition top_down_strategy (n : Node) : (bool * Node) := *)
+(*   match correctness n with *)
+(*     no => match children n with *)
+(*            nil => (false, mkNode idk nil) *)
+(*          | _ => (true, hd (mkNode idk nil) (children n)) *)
+(*          end *)
+(*   | _ => (false, mkNode idk nil) *)
+(*   end. *)
 (* Extraction top_down_strategy. *)
-Eval compute in top_down_strategy node5.
+(* Eval compute in top_down_strategy node5. *)
 Require Import Coq.Lists.List Coq.Bool.Bool.
 
 Import Coq.Lists.List.ListNotations.
@@ -283,7 +296,7 @@ Definition evaluate_node (n : Node) : Correctness :=
 (* Scheme Equality for Node. *)
 (* Eval compute in Node_beq (mkNode no nil) (mkNode no nil). *)
 Definition get_debugging_tree_from_tree (n : Node) : Node :=
-  mkNode no (children n).
+  mkNode (content n) no (children n).
 Require Import Program.Wf.
 Lemma debugging_tree_of_tree_has_same_weight: forall n:Node, weight n = weight (get_debugging_tree_from_tree n).
 Proof.
@@ -410,17 +423,3 @@ Next Obligation.
 Qed.
 
 Obligation Tactic := Tactics.program_simpl.
-
-Lemma generic_debugging_algorithm_returns_incorrect_childfree_node_when_given_debugging_tree: forall n:Node, is_debugging_tree n -> correctness (generic_debugging_algorithm n) = no.
-Proof.
-  intros n H.
-  induction n.
-  induction children0.
-  - cbv. intuition. simpl.
-
-Lemma generic_debugging_algorithm_returns_childfree_node: forall n:Node, children (generic_debugging_algorithm n) = nil.
-Proof.
-  intros n.
-  induction n.
-  induction children0.
-  + simpl generic_debugging_algorithm. Tactics.program_simpl. simpl. intuition. auto. eauto.
