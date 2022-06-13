@@ -14,7 +14,6 @@ Inductive Correctness : Type :=
 | trusted : Correctness
 | idk : Correctness.
 
-
 Inductive ComparableNode : Type :=
   mkComparableNode
     {
@@ -33,19 +32,32 @@ Inductive Node : Type :=
 Fixpoint get_comparable_node_from_node (n: Node) : ComparableNode :=
   mkComparableNode (content n) (map (fun child => get_comparable_node_from_node child) (children n)).
 
-Check Node_rect.
-Check Node_ind.
-Check Node_rec.
-Check Node_sind.
+Lemma comparable_node_content_eq_to_node_content : forall n:Node, content n = ComparableNodeContent (get_comparable_node_from_node n).
+Proof.
+  intros n.
+  induction n.
+  simpl.
+  reflexivity.
+Qed.
+
 Fixpoint or_list (l : list Prop) : Prop :=
   match l with
     nil => False
   | hd::tl => or hd (or_list tl)
   end.
-Fixpoint is_node_in_tree (n m : Node) : Prop :=
-  or (content n = content m) (or_list (map (fun child => is_node_in_tree n child) (children m))).
 
-Lemma node_is_in_itself : forall n : Node, is_node_in_tree n n.
+Fixpoint is_node_in_tree (c : string) (m : Node) : Prop :=
+  or (c = content m) (or_list (map (fun child => is_node_in_tree c child) (children m))).
+
+Lemma nodes_with_same_content : forall n1 n2 tree: Node, content n1 = content n2 /\ is_node_in_tree (content n1) tree -> is_node_in_tree (content n2) tree.
+Proof.
+  intros n1 n2 tree H.
+  intuition.
+  rewrite <- H0.
+  exact H1.
+Qed.
+
+Lemma node_is_in_itself : forall n : Node, is_node_in_tree (content n) n.
 Proof.
   intros n.
   induction n.
@@ -54,7 +66,7 @@ Proof.
   + reflexivity.
 Qed.
 
-Lemma head_of_non_empty_children_is_in_parent : forall parent child : Node, (children parent) <> nil /\ hd (mkNode "I don't exist"%string idk nil) (children parent) = child -> is_node_in_tree child parent.
+Lemma head_of_non_empty_children_is_in_parent : forall parent child : Node, (children parent) <> nil /\ hd (mkNode "I don't exist"%string idk nil) (children parent) = child -> is_node_in_tree (content child) parent.
 Proof.
   intros parent child H.
   induction parent.
@@ -72,30 +84,43 @@ Proof.
     apply node_is_in_itself.
 Qed.
 
-(* Lemma child_node_is_in_parent : forall parent child : Node, In child (children parent) -> is_node_in_tree child parent. *)
-(* Proof. *)
-(*   intros parent child H. *)
-(*   induction parent. *)
-(*   simpl. *)
-(*   right. *)
-(*   induction children0. *)
-(*   + inversion H. *)
-(*   + simpl. *)
-(*     left. *)
-(*     injection IHchildren0. *)
-(*     intuition. *)
-(*   intuition. *)
-(*   left. *)
-(*   + reflexivity. *)
-(* Qed. *)
+Lemma child_node_is_in_parent : forall parent child : Node, In child (children parent) -> is_node_in_tree (content child) parent.
+Proof.
+  intros parent child H.
+  induction parent.
+  simpl.
+  right.
+  induction children0.
+  + inversion H.
+  + assert (In child
+        {|
+          content := content0;
+          correctness := correctness0;
+          children := a :: children0
+        |}.(children) -> child = a \/ (In child
+        {|
+          content := content0;
+          correctness := correctness0;
+          children := children0
+        |}.(children))).
+    simpl.
+    intuition.
+    intuition.
+    rewrite <- H0.
+    simpl.
+    left.
+    apply node_is_in_itself.
+    simpl.
+    right.
+    exact H1.
+Qed.
 
-Example HelloWorld := "Hello world!"%string.
-Check HelloWorld.
 Definition node1 := mkNode "node1"%string idk nil.
 Definition node2 := mkNode "node2"%string idk nil.
 Definition node3 := mkNode "node3"%string trusted (node1::node2::nil).
 Eval compute in get_comparable_node_from_node node1 = get_comparable_node_from_node node1.
 Eval compute in correctness node3.
+
 Lemma list_sum_ge_0 : forall l : list nat, 0 <= list_sum l.
 Proof.
   intros l.
@@ -112,22 +137,12 @@ Proof.
   intuition.
   intuition.
 Qed.
-SearchPattern (Prop).
+
 Fixpoint and_list (l : list Prop) : Prop :=
   match l with
     nil => True
   | hd::tl => and hd (and_list tl)
   end.
-Search list.
-Print Datatypes.length.
-SearchPattern (_ -> _ -> Prop _ list).
-Print app.
-Check node1 = node1.
-SearchPattern (nat -> nat -> bool).
-
-Eval compute in Datatypes.length (0::nil).
-
-Search nat.
 
 Lemma and_list_true_implies_element_in_list_true: forall (A : Type) (l : list A) (element : A) (x : A -> Prop), and_list (map (fun item => x item) l) /\ In element l -> x element.
 Proof.
@@ -141,22 +156,6 @@ Proof.
       exact H.
     - inversion H0. intuition.
 Qed.
-
-Search (nat -> Prop).
-
-Fact example: and_list (map (fun item => Nat.Even item) (0::nil)) -> Nat.Even 0.
-Proof.
-  intro H.
-  assert (In 0 (0::nil)).
-  + intuition.
-  + apply and_list_true_implies_element_in_list_true with (0::nil).
-    split.
-    - exact H.
-    - exact H0.
-Qed.
-
-Eval compute in and_list (True::True::True::nil).
-Check 1::nil.
 
 Fixpoint weight (node : Node) : nat :=
   match children node with
@@ -186,10 +185,6 @@ Proof.
     intuition.
 Qed.
 
-Search list.
-Require Import Lia.
-Search nat.
-
 Lemma node_weight_gt_sum_children_weight: forall n:Node, weight n > list_sum (map (fun child => weight child) (children n)).
 Proof.
   intros n.
@@ -204,7 +199,6 @@ Proof.
     intuition.
 Qed.
 
-SearchPattern (_ <= _).
 Lemma nat_in_list_le_list_sum: forall (l:list nat) (element: nat), In element l -> element <= list_sum l.
 Proof.
   intros l element H.
@@ -235,7 +229,6 @@ Proof.
       intuition.
 Qed.
 
-SearchPattern (_ < _ + _).
 Lemma parent_weight_gt_child_weight: forall parent child:Node, In child (children parent) -> weight child < weight parent.
 Proof.
   intros parent child H.
@@ -264,11 +257,8 @@ Proof.
     intuition.
 Qed.
 
-Eval compute in idk = idk.
-Scheme Equality for Correctness.
 Fixpoint are_all_idk (node : Node) : Prop :=
   and (node.(correctness) = idk) (and_list (map (fun child => are_all_idk child) (children node))).
-Eval compute in are_all_idk node3.
 
 Lemma are_all_idk_implies_children_all_idk: forall n : Node, are_all_idk n -> and_list (map (fun child => are_all_idk child) (children n)).
 Proof.
@@ -425,6 +415,7 @@ Proof.
     exact H0.
 Qed.
 SearchPattern (_ = _ -> _ = _).
+
 Lemma comparable_node_of_debugging_tree_of_tree_is_comparable_node: forall n:Node, get_comparable_node_from_node (get_debugging_tree_from_tree n) = get_comparable_node_from_node n.
 Proof.
   intros n.
@@ -433,7 +424,7 @@ Proof.
   reflexivity.
 Qed.
 
-Lemma debugging_tree_of_tree_is_in_tree: forall n:Node, is_node_in_tree (get_debugging_tree_from_tree n) n.
+Lemma debugging_tree_of_tree_is_in_tree: forall n:Node, is_node_in_tree (content (get_debugging_tree_from_tree n)) n.
 Proof.
   intros n.
   induction n.
@@ -442,12 +433,34 @@ Proof.
   reflexivity.
 Qed.
 
+
+Lemma content_debugging_tree_eq_content_tree: forall n:Node, content (get_debugging_tree_from_tree n) = content n.
+Proof.
+  intros n.
+  induction n.
+  simpl.
+  reflexivity.
+Qed.
+
+
+(* Lemma unnamed: forall n m:Node, is_node_in_tree m n -> is_node_in_tree (get_debugging_tree_from_tree m) n. *)
+(* Proof. *)
+(*   intros n m H. *)
+(*   induction n. *)
+(*   assert (get_comparable_node_from_node (get_debugging_tree_from_tree m) = get_comparable_node_from_node m). *)
+(*   + apply comparable_node_of_debugging_tree_of_tree_is_comparable_node. *)
+(*   + intuition. simpl. *)
+(*   left. *)
+(*   reflexivity. *)
+(* Qed. *)
+
+
 Obligation Tactic := intros.
 
-Program Fixpoint generic_debugging_algorithm (n : Node) {measure (weight n)}: Node :=
+Program Fixpoint generic_debugging_algorithm_non_dependently_typed (n : Node) {measure (weight n)}: Node :=
   match children n with
     nil => n
-  | head::tail => generic_debugging_algorithm (get_debugging_tree_from_tree head)
+  | head::tail => generic_debugging_algorithm_non_dependently_typed (get_debugging_tree_from_tree head)
   end.
 Next Obligation.
   assert (In head (children n)).
@@ -467,25 +480,15 @@ Next Obligation.
   intuition.
 Qed.
 
-
 Obligation Tactic := intros.
 Obligation Tactic := Tactics.program_simpl.
 
-Program Fixpoint generic_debugging_algorithm_dp1 (n : {n: Node | is_debugging_tree n}) {measure (weight n)}: {m: Node | is_debugging_tree m /\ children m = nil} :=
+
+Program Fixpoint generic_debugging_algorithm_dependently_typed (n : {n: Node | is_debugging_tree n}) {measure (weight n)}: {m: Node | is_debugging_tree m /\ children m = nil} :=
   match children n with
     nil => n
-  | head::tail => generic_debugging_algorithm_dp1 (get_debugging_tree_from_tree head)
+  | head::tail => generic_debugging_algorithm_dependently_typed (get_debugging_tree_from_tree head)
   end.
-Print generic_debugging_algorithm_dp1_obligation_1.
-Print generic_debugging_algorithm_dp1_obligation_4.
-Obligations of generic_debugging_algorithm_dp1.
-(* Next Obligation. *)
-(*   split. *)
-(*   + exact H. *)
-(*   + split. *)
-(*     - reflexivity. *)
-(*     - apply node_is_in_itself. *)
-(* Qed. *)
 Next Obligation.
   inversion H.
   assert (are_all_idk head).
@@ -504,7 +507,6 @@ Next Obligation.
       exact H2.
 Qed.
 Obligation Tactic := intros.
-Obligations of generic_debugging_algorithm_dp1.
 Next Obligation.
   assert (In head (children (proj1_sig n))).
   + induction (children (proj1_sig n)).
@@ -521,45 +523,19 @@ Next Obligation.
       exact H.
 Qed.
 
-(* Lemma generic_debugging_algorithm_of_childfree_node_is_childfree_node: forall n:Node, children n = nil -> generic_debugging_algorithm n = n. *)
-(* Proof. *)
-(*   intros n H. *)
-(*   induction n. *)
-(*   induction children0. *)
-(*   simpl. *)
-(*   intuition. *)
-(*   Tactics.program_simpl. *)
-(*   unfold generic_debugging_algorithm. *)
-(*   simpl. *)
-(*   intuition. *)
-(*   reflexivity. *)
-
-(* Lemma result_node_of_generic_debugging_algorithm_is_in_input_tree: forall n : Node, is_debugging_tree n -> is_node_in_tree (generic_debugging_algorithm n) n. *)
-(*   Proof. *)
-(*     intros n H. *)
-(*     induction n. *)
-(*     induction children0. *)
-(*     + assert (generic_debugging_algorithm) *)
-(*     + simpl. *)
-(*       left. *)
-(*       unfold generic_debugging_algorithm. *)
-(*       simpl. *)
-(*       intuition. *)
-(*       simpl. *)
-
 Obligation Tactic := intros.
 Obligation Tactic := Tactics.program_simpl.
-Print generic_debugging_algorithm_dp1_obligation_1.
-Search nat.
 
-Program Fixpoint generic_debugging_algorithm_dp (n : {n: Node | is_debugging_tree n}) {measure (weight n)}: {m: Node | is_node_in_tree m n} :=
+Program Fixpoint generic_debugging_algorithm_dp (n : {n: Node | is_debugging_tree n}) {measure (weight n)}: {m: Node | is_debugging_tree m /\ is_node_in_tree (content m) n} :=
   match children n with
     nil => n
   | head::tail => generic_debugging_algorithm_dp (get_debugging_tree_from_tree head)
   end.
 Obligations of generic_debugging_algorithm_dp.
 Next Obligation.
-  apply node_is_in_itself.
+  split.
+  + exact H.
+  + apply node_is_in_itself.
 Qed.
 Obligations of generic_debugging_algorithm_dp.
 Next Obligation.
@@ -599,48 +575,38 @@ Next Obligation.
       apply parent_weight_gt_child_weight.
       exact H.
 Qed.
-Obligation Tactic := Tactics.program_simpl.
 Obligation Tactic := intros.
-Print generic_debugging_algorithm_dp_obligation_1.
 Next Obligation.
+  simpl.
+  split.
   assert (In head (children (proj1_sig n))).
   - induction (children (proj1_sig n)).
-    inversion Heq_anonymous.
+    + inversion Heq_anonymous.
+    + simpl.
+      left.
+      injection Heq_anonymous.
+      intuition.
+  - assert (content (get_debugging_tree_from_tree head) = content head).
+    apply content_debugging_tree_eq_content_tree.
+    assert (is_node_in_tree (content head) (proj1_sig n)).
+    apply child_node_is_in_parent.
+    exact H.
+    inversion H0.
+    assert (content head = content (get_debugging_tree_from_tree head)).
+    apply H0.
     simpl.
-    left.
-    injection Heq_anonymous.
-    intuition.
-  - assert (is_node_in_tree head (proj1_sig n)).
-    + apply head_of_non_empty_children_is_in_parent.
-      split.
-      apply Heq_anonymous.
-  intuition.
-  simpl.
-  inversion H.
-  assert (are_all_idk head).
-  + assert (In head (children n)).
-  - induction (children n).
-    inversion Heq_anonymous.
-    simpl.
-    left.
-    injection Heq_anonymous.
-    intuition.
-  - apply and_list_true_implies_element_in_list_true with (children n).
+    apply nodes_with_same_content with head.
     split.
-    exact H1.
-    exact H2.
-    + split.
-    - apply debugging_tree_of_idk_tree_is_debugging_tree.
-      exact H2.
-  +
-  - apply debugging_tree_of_tree_has_same_weight.
-  simpl.
-  intuition.
-  apply generic_debugging_algorithm_dp1_obligation_1.
-  split.
-  + intuition. simpl.
-  simpl.
-  intuition.
-  + simpl.
-    intuition.
+    + rewrite H2. intuition. simpl. auto. apply H2.
+    apply nodes_with_same_content.
+    apply
+
+
+    apply head_of_non_empty_children_is_in_parent.
+    split.
+    + intuition.
+      rewrite H0 in H.
+      inversion H.
+    + intuition.
+
 Qed.
