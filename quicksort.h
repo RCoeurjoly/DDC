@@ -11,7 +11,7 @@ int partition(std::vector<int> &my_vector, int low, int high)
 {
   int pivot = my_vector[high];
   int i = (low - 1);
-  for (int j = low; j <= high - 1; j++)
+  for (int j = low; j <= high - 1; j)
     {
       if (my_vector[j] <= pivot)
         {
