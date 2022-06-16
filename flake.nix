@@ -59,7 +59,7 @@
     in {
       packages.x86_64-linux.${packageName} = app;
 
-      defaultPackage.x86_64-linux =
+      packages.x86_64-linux.default =
         # Notice the reference to nixpkgs here.
         with import nixpkgs { system = "x86_64-linux"; };
         stdenv.mkDerivation {
@@ -69,6 +69,18 @@
           buildPhase = "gcc -I./ -O0 -g -o quicksort ./quicksort.cpp -lstdc++";
           installPhase = "mkdir -p $out/bin; install -t $out/bin quicksort";
         };
+
+      packages.x86_64-linux.non_terminating_quicksort =
+        # Notice the reference to nixpkgs here.
+        with import nixpkgs { system = "x86_64-linux"; };
+        stdenv.mkDerivation {
+          name = "non_terminating_quicksort";
+          src = self;
+          dontStrip = true;
+          buildPhase = "gcc -I./ -O0 -g -o non_terminating_quicksort ./non_terminating_quicksort.cpp -lstdc++";
+          installPhase = "mkdir -p $out/bin; install -t $out/bin non_terminating_quicksort";
+        };
+
 
       packages.x86_64-linux.quicksort_wrong_bt =
         # Notice the reference to nixpkgs here.
