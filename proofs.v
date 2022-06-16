@@ -476,10 +476,23 @@ Next Obligation.
       apply parent_weight_gt_child_weight.
       exact H.
 Qed.
+
 Next Obligation.
   intuition.
 Qed.
 
+(* Lemma gda_correct : forall n:Node, is_debugging_tree n -> is_debugging_tree (generic_debugging_algorithm_non_dependently_typed n) /\ children (generic_debugging_algorithm_non_dependently_typed n) = nil /\ is_node_in_tree (content (generic_debugging_algorithm_non_dependently_typed n)) n. *)
+(* Proof. *)
+(*   intros. *)
+(*   intuition. *)
+(*   + induction n. *)
+(*     induction children0. *)
+(*     - simpl. *)
+(*     intuition. *)
+(*     Tactics.program_simpl. *)
+(*     unfold generic_debugging_algorithm_non_dependently_typed. *)
+(*     simpl. *)
+(*     intuition. *)
 Obligation Tactic := intros.
 Obligation Tactic := Tactics.program_simpl.
 
