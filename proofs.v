@@ -443,6 +443,24 @@ Proof.
 Qed.
 
 
+Lemma debugging_tree_of_children_head_of_debugging_tree_is_debugging_tree: forall (n head:Node) (tail: list Node), children n = head::tail /\ is_debugging_tree n -> is_debugging_tree (get_debugging_tree_from_tree head).
+Proof.
+  intros n head tail H.
+  inversion H.
+  inversion H1.
+  assert (are_all_idk head).
+  + apply and_list_true_implies_element_in_list_true with (children (n)).
+    split.
+    - exact H3.
+    - intuition.
+  + induction (children n).
+    - inversion H.
+      inversion H0.
+    - inversion H.
+      injection H0.
+      intuition.
+      apply and_list_true_implies_element_in_list_true with (children (n)).
+      split.
 (* Lemma unnamed: forall n m:Node, is_node_in_tree m n -> is_node_in_tree (get_debugging_tree_from_tree m) n. *)
 (* Proof. *)
 (*   intros n m H. *)
@@ -502,6 +520,7 @@ Program Fixpoint generic_debugging_algorithm_dependently_typed (n : {n: Node | i
     nil => n
   | head::tail => generic_debugging_algorithm_dependently_typed (get_debugging_tree_from_tree head)
   end.
+Print generic_debugging_algorithm_dependently_typed_obligation_1.
 Next Obligation.
   inversion H.
   assert (are_all_idk head).
@@ -537,21 +556,26 @@ Next Obligation.
 Qed.
 
 Obligation Tactic := intros.
-Obligation Tactic := Tactics.program_simpl.
 
-Program Fixpoint generic_debugging_algorithm_dp (n : {n: Node | is_debugging_tree n}) {measure (weight n)}: {m: Node | is_debugging_tree m /\ is_node_in_tree (content m) n} :=
+Program Fixpoint generic_debugging_algorithm_dp (n : {n: Node | is_debugging_tree n}) {measure (weight n)}: {m: Node | is_node_in_tree (content m) n /\ is_debugging_tree m /\ children m = nil} :=
   match children n with
     nil => n
   | head::tail => generic_debugging_algorithm_dp (get_debugging_tree_from_tree head)
   end.
 Obligations of generic_debugging_algorithm_dp.
+Solve All Obligations.
 Next Obligation.
+  simpl.
+  Tactics.program_simpl.
   split.
-  + exact H.
   + apply node_is_in_itself.
+  + split.
+    - exact H.
+    - reflexivity.
 Qed.
 Obligations of generic_debugging_algorithm_dp.
 Next Obligation.
+  Tactics.program_simpl.
   inversion H.
   assert (are_all_idk head).
   + assert (In head (children n)).
@@ -588,7 +612,8 @@ Next Obligation.
       apply parent_weight_gt_child_weight.
       exact H.
 Qed.
-Obligation Tactic := intros.
+Obligation Tactic := simpl.
+Obligations of generic_debugging_algorithm_dp.
 Next Obligation.
   simpl.
   split.
@@ -608,18 +633,12 @@ Next Obligation.
     assert (content head = content (get_debugging_tree_from_tree head)).
     apply H0.
     simpl.
-    apply nodes_with_same_content with head.
-    split.
-    + rewrite H2. intuition. simpl. auto. apply H2.
-    apply nodes_with_same_content.
-    apply
-
-
-    apply head_of_non_empty_children_is_in_parent.
-    split.
-    + intuition.
-      rewrite H0 in H.
-      inversion H.
-    + intuition.
-
+    assert (are_all_idk head).
+    + induction (children (proj1_sig n)).
+      inversion Heq_anonymous.
+      simpl.
+      injection Heq_anonymous.
+      intuition.
+      apply and_list_true_implies_element_in_list_true with (children (proj1_sig n)).
+      split.
 Qed.
