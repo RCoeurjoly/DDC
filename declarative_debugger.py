@@ -343,12 +343,11 @@ class StartDeclarativeDebuggingSession(gdb.Command):
 
 StartDeclarativeDebuggingSession()
 
-class TilTheEnd(gdb.Command):
-    """Set breakpoint on setField from Quickfix. It takes the tag number as argument"""
+class UntilTheEnd(gdb.Command):
 
     def __init__(self):
-        super(TilTheEnd, self).__init__(
-            "til-the-end", gdb.COMMAND_USER)
+        super(UntilTheEnd, self).__init__(
+            "until-the-end", gdb.COMMAND_USER)
 
     def invoke(self, arg, from_tty):
         initial_br_number = len([breakpoint for breakpoint in gdb.breakpoints()
@@ -364,7 +363,7 @@ class TilTheEnd(gdb.Command):
             gdb.execute("c")
             total_br_number = len(gdb.breakpoints())
 
-TilTheEnd()
+UntilTheEnd()
 
 class ListenForCorrectNodes(gdb.Command):
 
