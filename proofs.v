@@ -442,6 +442,25 @@ Proof.
   reflexivity.
 Qed.
 
+Lemma children_head_of_debugging_tree_are_all_idk: forall (n head:Node) (tail: list Node), children n = head::tail /\ is_debugging_tree n -> are_all_idk head.
+Proof.
+  intros n head tail H.
+  inversion H.
+  inversion H1.
+  + apply and_list_true_implies_element_in_list_true with (children (n)).
+    split.
+    - exact H3.
+    - induction n.
+      induction children0.
+      intuition.
+      simpl.
+      inversion H4.
+      simpl.
+      left.
+      inversion H0.
+      reflexivity.
+Qed.
+
 
 Lemma debugging_tree_of_children_head_of_debugging_tree_is_debugging_tree: forall (n head:Node) (tail: list Node), children n = head::tail /\ is_debugging_tree n -> is_debugging_tree (get_debugging_tree_from_tree head).
 Proof.
@@ -449,29 +468,21 @@ Proof.
   inversion H.
   inversion H1.
   assert (are_all_idk head).
-  + apply and_list_true_implies_element_in_list_true with (children (n)).
+  + apply children_head_of_debugging_tree_are_all_idk with n.
     split.
     - exact H3.
-    - intuition.
-  + induction (children n).
-    - inversion H.
-      inversion H0.
-    - inversion H.
-      injection H0.
+    - induction n.
+      induction children0.
       intuition.
-      apply and_list_true_implies_element_in_list_true with (children (n)).
-      split.
-(* Lemma unnamed: forall n m:Node, is_node_in_tree m n -> is_node_in_tree (get_debugging_tree_from_tree m) n. *)
-(* Proof. *)
-(*   intros n m H. *)
-(*   induction n. *)
-(*   assert (get_comparable_node_from_node (get_debugging_tree_from_tree m) = get_comparable_node_from_node m). *)
-(*   + apply comparable_node_of_debugging_tree_of_tree_is_comparable_node. *)
-(*   + intuition. simpl. *)
-(*   left. *)
-(*   reflexivity. *)
-(* Qed. *)
-
+      simpl.
+      inversion H4.
+      simpl.
+      left.
+      inversion H0.
+      reflexivity.
+  + apply debugging_tree_of_idk_tree_is_debugging_tree.
+    exact H4.
+Qed.
 
 Obligation Tactic := intros.
 
