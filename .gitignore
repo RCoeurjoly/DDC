@@ -5,6 +5,5 @@ gdb_record*
 core*
 tmp/
 *.txt
-.gdbinit
 restats
 __pycache__
