@@ -204,6 +204,7 @@ class SaveReturningNode(gdb.Command):
         if my_node.get_tree(False, False, False) in CORRECT_NODES:
            remove_node_and_update_tree(MY_DEBUGGING_SESSION.node,
                                        my_node.position)
+           assert False
         gdb.execute("n")
 
 SaveReturningNode()
