@@ -4,7 +4,6 @@
 
 int main()
 {
-
   std::vector<int> my_vector{ 0, 0, 0, 0, 0, 0 };
   for (int i = 0; i <= 9; i++) {
     my_vector[0] = rand() % 9 + 1;
