@@ -118,7 +118,7 @@
           name = "quicksort";
           src = self;
           dontStrip = true;
-          buildPhase = "gcc -I./ -O0 -g -o quicksort ./quicksort.cpp -lstdc++";
+          buildPhase = "gcc -I./ -O0 -g -o quicksort ./examples/quicksort.cpp -lstdc++";
           installPhase = "mkdir -p $out/bin; install -t $out/bin quicksort";
         };
 
@@ -129,7 +129,7 @@
           name = "quicksort_wrong_bt";
           src = self;
           dontStrip = true;
-          buildPhase = "gcc -I./ -O0 -g -o quicksort_wrong_bt ./quicksort_wrong_bt.cpp -lstdc++";
+          buildPhase = "gcc -I./ -O0 -g -o quicksort_wrong_bt ./examples/quicksort_wrong_bt.cpp -lstdc++";
           installPhase = "mkdir -p $out/bin; install -t $out/bin quicksort_wrong_bt";
         };
 
@@ -141,7 +141,7 @@
           name = "quicksort_benchmarks";
           src = self;
           dontStrip = true;
-          buildPhase = "gcc -I./ -O0 -g -o quicksort_benchmarks ./quicksort_benchmarks.cpp -lstdc++";
+          buildPhase = "gcc -I./ -O0 -g -o quicksort_benchmarks ./examples/quicksort_benchmarks.cpp -lstdc++";
           installPhase = "mkdir -p $out/bin; install -t $out/bin quicksort_benchmarks";
         };
 
@@ -200,7 +200,7 @@
           name = "multithreading";
           src = self;
           dontStrip = true;
-          buildPhase = "gcc -I./ -O0 -g -pthread -o multithreading ./multithreading.cpp -lstdc++";
+          buildPhase = "gcc -I./ -O0 -g -pthread -o multithreading ./examples/multithreading.cpp -lstdc++";
           installPhase = "mkdir -p $out/bin; install -t $out/bin multithreading";
         };
 
@@ -211,7 +211,7 @@
           name = "test_quicksort";
           src = self;
           dontStrip = true;
-          buildPhase = "gcc -I./ -O0 -g -o test_quicksort ./test_quicksort.cpp -lstdc++";
+          buildPhase = "gcc -I./ -O0 -g -o test_quicksort ./examples/test_quicksort.cpp -lstdc++";
           installPhase = "mkdir -p $out/tests; install -t $out/tests test_quicksort";
         };
 
@@ -222,7 +222,7 @@
           name = "palindrome";
           src = self;
           dontStrip = true;
-          buildPhase = "gcc -O0 -g -o palindrome ./palindrome.cpp -lstdc++";
+          buildPhase = "gcc -O0 -g -o palindrome ./examples/palindrome.cpp -lstdc++";
           installPhase = "mkdir -p $out/tests; install -t $out/tests palindrome";
         };
 
@@ -233,7 +233,7 @@
           name = "car";
           src = self;
           dontStrip = true;
-          buildPhase = "gcc -O0 -g -o car ./car.cpp -lstdc++";
+          buildPhase = "gcc -O0 -g -o car ./examples/car.cpp -lstdc++";
           installPhase = "mkdir -p $out/bin; install -t $out/bin car";
         };
 
@@ -244,7 +244,7 @@
           name = "fibonacci";
           src = self;
           dontStrip = true;
-          buildPhase = "gcc -O0 -g -o fibonacci ./fibonacci.cpp -lstdc++";
+          buildPhase = "gcc -O0 -g -o fibonacci ./examples/fibonacci.cpp -lstdc++";
           installPhase = "mkdir -p $out/tests; install -t $out/tests fibonacci";
         };
 
@@ -255,7 +255,7 @@
           name = "BST";
           src = self;
           dontStrip = true;
-          buildPhase = "gcc -O0 -g -o BST ./BST.cpp -lstdc++";
+          buildPhase = "gcc -O0 -g -o BST ./examples/BST.cpp -lstdc++";
           installPhase = "mkdir -p $out/tests; install -t $out/tests BST";
         };
 
@@ -266,7 +266,7 @@
           name = "quicksort_array";
           src = self;
           dontStrip = true;
-          buildPhase = "gcc -O0 -g -o quicksort_array ./quicksort_array.cpp -lstdc++";
+          buildPhase = "gcc -O0 -g -o quicksort_array ./examples/quicksort_array.cpp -lstdc++";
           installPhase = "mkdir -p $out/tests; install -t $out/tests quicksort_array";
         };
 
