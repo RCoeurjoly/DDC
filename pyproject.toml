@@ -5,18 +5,19 @@ description = ""
 authors = ["Roland Coeurjoly <rolandcoeurjoly@gmail.com>"]
 
 [tool.poetry.dependencies]
-python = ">=3.7,<4.0"
+python = ">=3.8,<4.0"
 simple-term-menu = "^1.4.0"
 networkx = "^2.6.3"
 rich = "^10.16.1"
 setuptools-scm = "^6.3.2"
 packaging = "^21.3"
 tomli = "^2.0.0"
-crosshair-tool = "^0.0.20"
+# crosshair-tool = "^0.0.20"
 flit_core = "^3.7.1"
 Jinja2 = "^3.0.3"
-mysql = "^0.0.3"
-mysql-connector-python = "8.0.23"
+# mysql = "^0.0.3"
+# mysql-connector-python = "8.0.23"
+# mysql-connector-python = "^8.3.0"
 
 
 [tool.poetry.dev-dependencies]

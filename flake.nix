@@ -4,16 +4,18 @@
   # inputs.nixpkgs.url = "nixpkgs/nixos-21.05-small";
   inputs.nixpkgs.url = "nixpkgs";
   inputs.flake-utils.url = "github:numtide/flake-utils";
+  inputs.poetry2nix.url = "github:nix-community/poetry2nix";
 
-  outputs = { self, nixpkgs, flake-utils }:
+  outputs = { self, nixpkgs, flake-utils, poetry2nix }:
     let
 
       pkgs = nixpkgs.legacyPackages.x86_64-linux;
 
-      ncoq = pkgs.coq_8_10;
-      ncoqPackages = pkgs.coqPackages_8_10;
+      ncoq = pkgs.coq_8_18;
+      ncoqPackages = pkgs.coqPackages_8_18;
+      inherit (poetry2nix.lib.mkPoetry2Nix { inherit pkgs; }) mkPoetryApplication defaultPoetryOverrides mkPoetryEnv;
 
-      myAppEnv = pkgs.poetry2nix.mkPoetryEnv {
+      myAppEnv = mkPoetryEnv {
         projectDir = ./.;
         editablePackageSources = {
           my-app = ./src;
@@ -47,13 +49,30 @@
             buildInputs = (old.buildInputs or [ ]) ++ [ self.flit-core self.platformdirs ];
           }
         );
+
+        mysql = super.mysql.overridePythonAttrs (
+          old: {
+            buildInputs = (old.buildInputs or [ ]) ++ [ self.setuptools ];
+          }
+        );
+
+        # mysql-connector-python = super.mysql-connector-python.overridePythonAttrs (
+        #   old: {
+        #     buildInputs = (old.buildInputs or [ ]) ++ [ self.setuptools self.flit-core ];
+        #   }
+        # );
+
+        # mysql-connector-python = super.mysql-connector-python.override {
+        #   preferWheel = true;
+        # };
+
       };
 
-      app = pkgs.poetry2nix.mkPoetryApplication {
+      app = mkPoetryApplication {
         projectDir = ./.;
         python = pkgs.python39;
         overrides =
-          [ pkgs.poetry2nix.defaultPoetryOverrides customOverrides ];
+          [ defaultPoetryOverrides customOverrides ];
       };
 
       cfg = {  # default configuration
@@ -449,16 +468,19 @@
       };
 
       devShells.x86_64-linux.default = myAppEnv.env.overrideAttrs (oldAttrs: {
-        buildInputs = with pkgs; [ gdb
-                                   rr
-                                   glibc
-                                   z3
-                                   emacs
-                                   coq
-                                   coqPackages.mathcomp
-                                   poetry
-                                   python39Packages.pylint
-                                   python39Packages.autopep8 ] ++ [ self.packages.x86_64-linux.alea ];
+        buildInputs = with pkgs; [
+          gdb
+          rr
+          glibc
+          # z3
+          # emacs
+          # coq
+          # coqPackages.mathcomp
+          poetry
+          # python39Packages.pylint
+          # python39Packages.autopep8
+          # ++ [ self.packages.x86_64-linux.alea ];
+        ];
       });
 
       checks.x86_64-linux = {
