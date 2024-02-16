@@ -118,7 +118,7 @@
           name = "quicksort";
           src = self;
           dontStrip = true;
-          buildPhase = "gcc -I./ -O0 -g -o quicksort ./examples/quicksort.cpp -lstdc++";
+          buildPhase = "gcc -I./examples -O0 -g -o quicksort ./examples/quicksort.cpp -lstdc++";
           installPhase = "mkdir -p $out/bin; install -t $out/bin quicksort";
         };
 
@@ -129,7 +129,7 @@
           name = "quicksort_wrong_bt";
           src = self;
           dontStrip = true;
-          buildPhase = "gcc -I./ -O0 -g -o quicksort_wrong_bt ./examples/quicksort_wrong_bt.cpp -lstdc++";
+          buildPhase = "gcc -I./examples -O0 -g -o quicksort_wrong_bt ./examples/quicksort_wrong_bt.cpp -lstdc++";
           installPhase = "mkdir -p $out/bin; install -t $out/bin quicksort_wrong_bt";
         };
 
@@ -141,7 +141,7 @@
           name = "quicksort_benchmarks";
           src = self;
           dontStrip = true;
-          buildPhase = "gcc -I./ -O0 -g -o quicksort_benchmarks ./examples/quicksort_benchmarks.cpp -lstdc++";
+          buildPhase = "gcc -I./examples -O0 -g -o quicksort_benchmarks ./examples/quicksort_benchmarks.cpp -lstdc++";
           installPhase = "mkdir -p $out/bin; install -t $out/bin quicksort_benchmarks";
         };
 
@@ -200,7 +200,7 @@
           name = "multithreading";
           src = self;
           dontStrip = true;
-          buildPhase = "gcc -I./ -O0 -g -pthread -o multithreading ./examples/multithreading.cpp -lstdc++";
+          buildPhase = "gcc -I./examples -O0 -g -pthread -o multithreading ./examples/multithreading.cpp -lstdc++";
           installPhase = "mkdir -p $out/bin; install -t $out/bin multithreading";
         };
 
@@ -211,7 +211,7 @@
           name = "test_quicksort";
           src = self;
           dontStrip = true;
-          buildPhase = "gcc -I./ -O0 -g -o test_quicksort ./examples/test_quicksort.cpp -lstdc++";
+          buildPhase = "gcc -I./examples -O0 -g -o test_quicksort ./examples/test_quicksort.cpp -lstdc++";
           installPhase = "mkdir -p $out/tests; install -t $out/tests test_quicksort";
         };
 
