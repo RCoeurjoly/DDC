@@ -50,10 +50,10 @@
           }
         );
 
-        mysql = super.mysql.overridePythonAttrs (
-          old: {
-            buildInputs = (old.buildInputs or [ ]) ++ [ self.setuptools ];
-          }
+        mysqlclient = super.mysqlclient.overridePythonAttrs (
+         old: {
+           buildInputs = (old.buildInputs or [ ]) ++ [ self.setuptools ];
+         }
         );
 
         # mysql-connector-python = super.mysql-connector-python.overridePythonAttrs (
@@ -65,6 +65,10 @@
         # mysql-connector-python = super.mysql-connector-python.override {
         #   preferWheel = true;
         # };
+
+	#mysql = super.mysql.override {
+        #  preferWheel = true;
+        #};
 
       };
 
@@ -480,6 +484,7 @@
           # python39Packages.pylint
           # python39Packages.autopep8
           # ++ [ self.packages.x86_64-linux.alea ];
+	  mysql
         ];
       });
 

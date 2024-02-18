@@ -18,6 +18,7 @@ Jinja2 = "^3.0.3"
 # mysql = "^0.0.3"
 # mysql-connector-python = "8.0.23"
 # mysql-connector-python = "^8.3.0"
+mysql-connector-python = "^8.3.0"
 
 
 [tool.poetry.dev-dependencies]

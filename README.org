@@ -48,3 +48,4 @@ rr replay
 source declarative_debugger.py
    #+end_src
 =======
+sudo apt-get install libmariadb-dev
